@@ -1,0 +1,5 @@
+god_mode.json
+credentials.json
+__pycache__/
+token.pickle
+.vscode/
