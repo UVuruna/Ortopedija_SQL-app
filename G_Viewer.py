@@ -6,9 +6,9 @@ from ttkbootstrap.dialogs.dialogs import Messagebox
 import customtkinter as ctk
 from PIL import Image, ImageTk
 from tkinter.font import nametofont
-from variables import *
-import SQLite_DBMS as SQLite
-from GoogleDrive import GoogleDrive_User
+from A_Variables import *
+import E_SQLite_DBMS as SQLite
+from C_GoogleDrive import GoogleDrive_User
 import threading
 import time
 

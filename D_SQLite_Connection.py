@@ -3,7 +3,7 @@ from tkinter import simpledialog
 import ttkbootstrap as tb
 import sqlparse
 from datetime import date
-from Decorators import Singleton
+from B_Decorators import Singleton
 
 
 class PasswordDialog(simpledialog.Dialog):

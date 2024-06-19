@@ -7,11 +7,11 @@ from ttkbootstrap.dialogs.dialogs import Messagebox
 from tkinter import messagebox
 import customtkinter as ctk
 from datetime import date, datetime
-from variables import max_searchby,ThemeColors_Dict
-import SQLite_Connection as SQLLite
-from GoogleDrive import GoogleDrive_User
-from Decorators import Singleton
-from media_manipulation import *
+from A_Variables import max_searchby,ThemeColors_Dict
+import D_SQLite_Connection as SQLLite
+from C_GoogleDrive import GoogleDrive_User
+from B_Decorators import Singleton
+from F_Media_Manipulation import *
 import time
 
 class Buttons(Singleton):

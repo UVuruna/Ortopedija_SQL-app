@@ -9,7 +9,7 @@ from google.oauth2.credentials import Credentials
 from google.auth import impersonated_credentials
 from google.oauth2 import service_account
 import io
-from Decorators import Singleton
+from B_Decorators import Singleton
 import json
 import requests
 
@@ -31,9 +31,9 @@ class GoogleDrive_User(Singleton):
 
     def authenticate_google_drive(self):
         creds = None
-        # Proverite da li postoji token.pickle fajl koji čuva korisničke kredencijale
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
+        # Proverite da li postoji www_token.pickle fajl koji čuva korisničke kredencijale
+        if os.path.exists('www_token.pickle'):
+            with open('www_token.pickle', 'rb') as token:
                 creds = pickle.load(token)
         # Ako nema kredencijala ili su nevažeći, korisnik mora da se autentifikuje
         if not creds or not creds.valid:
@@ -42,10 +42,10 @@ class GoogleDrive_User(Singleton):
                 creds.refresh(Request())
             else:
                 print("Running authentication flow...")
-                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', self.SCOPES)
+                flow = InstalledAppFlow.from_client_secrets_file('www_credentials.json', self.SCOPES)
                 creds = flow.run_local_server(port=0)
             # Sačuvajte kredencijale za sledeću upotrebu
-            with open('token.pickle', 'wb') as token:
+            with open('www_token.pickle', 'wb') as token:
                 pickle.dump(creds, token)
         return creds
 
