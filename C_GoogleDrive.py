@@ -1,25 +1,11 @@
-import os
-import pickle
-import google.auth
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload, MediaIoBaseUpload
-from google.oauth2.credentials import Credentials
-from google.auth import impersonated_credentials
-from google.oauth2 import service_account
-import io
+from A_Variables import *
 from B_Decorators import Singleton
-import json
-import requests
-
-
 
 class GoogleDrive_User(Singleton):
     _initialized = False
     def __init__(self) -> None:
         if not self._initialized:
-            print(f"INITING {GoogleDrive_User}")
+            print(f"__INITIALIZING__ {GoogleDrive_User}")
             self.SCOPES = [ 'https://www.googleapis.com/auth/drive',
                             'https://www.googleapis.com/auth/drive.file',
                             'https://www.googleapis.com/auth/admin.directory.user',
@@ -63,6 +49,17 @@ class GoogleDrive_User(Singleton):
         self.drive_service.files().update(fileId=file_id, media_body=media).execute()
         print('File ID: %s' % file_id)
         return file_id 
+
+    def get_file_blob(self, file_id):
+        request = self.drive_service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+            print("Download %d%%." % int(status.progress() * 100))
+        fh.seek(0)
+        return fh.getvalue()
 
     def upload_file_fromPC(self, file_name, GoogleDrive_folder, file_path, mime_type):
         file_metadata = {'name': file_name, 'parents': GoogleDrive_folder}

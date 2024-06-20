@@ -1,5 +1,8 @@
 __pycache__/
 .vscode/
+temporary/
 www_god_mode.json
 www_credentials.json
 www_token.pickle
+www.test.py
+www.test2.py

@@ -1,18 +1,8 @@
-    # LEFT == BUTTON FUNCTIONS
-
-from tkinter import *
-import ttkbootstrap as tb
-from ttkbootstrap import widgets
-from ttkbootstrap.dialogs.dialogs import Messagebox
-from tkinter import messagebox
-import customtkinter as ctk
-from datetime import date, datetime
-from A_Variables import max_searchby,ThemeColors_Dict
-import D_SQLite_Connection as SQLLite
-from C_GoogleDrive import GoogleDrive_User
+from A_Variables import *
 from B_Decorators import Singleton
-from F_Media_Manipulation import *
-import time
+from C_GoogleDrive import GoogleDrive_User
+import D_SQLite_Connection as SQLLite
+from F_Media_Manipulation import Media
 
 class Buttons(Singleton):
     _initialized = False
@@ -23,13 +13,16 @@ class Buttons(Singleton):
             self.DB = SQLLite.Database('RHMH.db')
             self.GD = GoogleDrive_User()
             self.UPDATE = False
+            self.NoteBook:tb.Notebook = None
+            self.Slike_HideTable: Frame = None
 
             self.MessageBoxParent: Frame = None
             self.PatientFocus_ID = None
             self.Table_Slike:tb.ttk.Treeview = None
-            self.Slike_Viewer:tb.ttk.Treeview = None
+            self.Slike_Viewer:Canvas = None
             self.ValidationState:bool = True
 
+            self.FormTitle = None
             self.PatientInfo = None
             self.Patient_FormVariables = dict()
             self.MKB_FormVariables = dict()
@@ -67,6 +60,7 @@ class Buttons(Singleton):
 
     def Clear_Form(self):
         self.PatientFocus_ID = None
+        self.FormTitle[0].configure(bootstyle=self.FormTitle[1])
         self.PatientInfo.config(text="")
         for widget in self.Patient_FormVariables.values():
             self.empty_widget(widget)
@@ -196,38 +190,54 @@ class Buttons(Singleton):
         self.UPDATE = True
         print("MORA CSV")
 
-    def add_ImageToCanvas(self,event):
-        try:
-            ID = self.Table_Slike.item(self.Table_Slike.focus())['values'][1].split("_")[0]
-            FORMAT = self.Table_Slike.item(self.Table_Slike.focus())['values'][3].split("-")[0]
-        except IndexError:
-            return
+    def add_ImageToCanvas(self,event=None,root=None,ID=None):
+        if ID is None:
+            try:
+                ID = self.Table_Slike.item(self.Table_Slike.focus())['values'][1].split("_")[0]
+            except IndexError:
+                return
 
+        media,GoogleID = self.DB.execute_selectquery(f"SELECT Format,image_data from slike WHERE id_slike={ID}")[0]
+
+        ### NOTE LOADING IMAGE
+        self.Slike_Viewer.delete("all")
+        self.Slike_Viewer.unbind("<Button-1>")
         parent_name = self.Slike_Viewer.winfo_parent()
         parent_widget = self.Slike_Viewer.nametowidget(parent_name)
 
-        if FORMAT == "image":
-            image_blob = self.DB.get_imageBlob(ID)
-            image = get_image(image_blob)
-            image, Width, Height = resize_image(image, parent_widget.winfo_width(), parent_widget.winfo_height())
-            image = image_for_canvas(image)
+        loading_image = Image.open('C:/Users/vurun/Desktop/App/loading_circle.png')
+        resized_image, Width, Height  = Media.resize_image(loading_image, parent_widget.winfo_width(), parent_widget.winfo_height())
+        tk_image = ImageTk.PhotoImage(resized_image)
+        
+        self.Slike_Viewer.configure(width=Width, height=Height)
+        self.Slike_Viewer.create_image(0, 0, anchor=NW, image=tk_image)
+        self.Slike_Viewer.image = tk_image
+        ### NOTE AFTER LOADING SCREEN
 
-            # Ažuriranje dimenzija Canvas widgeta
-            self.Slike_Viewer.configure(width=Width, height=Height)
-            self.Slike_Viewer.create_image(0, 0, anchor=NW, image=image)
-            self.Slike_Viewer.image = image
-            self.Slike_Viewer.unbind("<Button-1>")
+        def load_actual_image():
+            blob_data = self.GD.get_file_blob(GoogleID)
+            if "image" in media:
+                image = Media.get_image(blob_data)
+                image, Width, Height = Media.resize_image(image, parent_widget.winfo_width(), parent_widget.winfo_height())
+                image = ImageTk.PhotoImage(image)
 
-        elif FORMAT == "video":
-            video_blob_data = self.DB.get_imageBlob(ID)
-            thumbnail = create_video_thumbnail_with_play_button(video_blob_data)
-            thumbnail, Width, Height = resize_image(thumbnail, parent_widget.winfo_width(), parent_widget.winfo_height())
-            thumbnail = image_for_canvas(thumbnail)
-            
-            self.Slike_Viewer.configure(width=Width, height=Height)
-            self.Slike_Viewer.create_image(0, 0, anchor=NW, image=thumbnail)
-            self.Slike_Viewer.image = thumbnail
-            self.Slike_Viewer.bind("<Button-1>",lambda event,video=video_blob_data: play_video(event,video))
+                # Ažuriranje dimenzija Canvas widgeta
+                self.Slike_Viewer.configure(width=Width, height=Height)
+                self.Slike_Viewer.create_image(0, 0, anchor=NW, image=image)
+                self.Slike_Viewer.image = image
+                self.Slike_Viewer.bind("<Double-1>",lambda event,image=blob_data: Media.open_image(event,image))
+                
+            elif "video" in media:
+                thumbnail,video_data = Media.create_video_thumbnail(blob_data)
+                thumbnail, Width, Height = Media.resize_image(thumbnail, parent_widget.winfo_width(), parent_widget.winfo_height())
+                thumbnail = ImageTk.PhotoImage(thumbnail)
+                
+                self.Slike_Viewer.configure(width=Width, height=Height)
+                self.Slike_Viewer.create_image(0, 0, anchor=NW, image=thumbnail)
+                self.Slike_Viewer.image = thumbnail
+                self.Slike_Viewer.bind("<Button-1>",lambda event,video=video_data: Media.play_video(event,video))
+        
+        root.after(100,load_actual_image)
 
     def Add_Image(self):
         self.UPDATE = True
@@ -238,8 +248,14 @@ class Buttons(Singleton):
     def Delete_Image(self):
         self.UPDATE = True
         pass
-    def Show_Images(self):
-        pass
+    def Show_Images(self,event,root:Tk):
+        ID = self.Patient_FormVariables['Slike'].item(self.Patient_FormVariables['Slike'].focus())['values'][1].split("_")[0]
+        self.NoteBook.select(2)
+
+        root.after(5,self.Slike_HideTable.grid_remove)
+        def execute():
+            self.add_ImageToCanvas(root=root,ID=ID)
+        root.after(10,execute)
 
     def Download_Image(self):
         print('slika loading...')
@@ -251,7 +267,7 @@ class Buttons(Singleton):
         
         if 'Operaciona' in OPIS:
             image_blob = self.DB.get_imageBlob(ID)
-            data = Image_Reader(image_blob,PRINT=True)
+            data = Media.Image_Reader(image_blob,PRINT=True)
             for col,val in data.items():
                 if col not in ["Ime","Prezime","Godište"] and val:
                     if isinstance(val,list):
@@ -286,12 +302,13 @@ class DBMS(Singleton):
         if not self._initialized:
             print(f"__INITIALIZING__ {DBMS}")
             self.buttons = Buttons()
+            self.GD = GoogleDrive_User()
             self.DB = self.buttons.DB
 
             self.PatientTable_IDs = list()
-            self.NoteBook:tb.Notebook = None
-            self.Table_Pacijenti:tb.ttk.Treeview = None
-            self.Table_MKB:tb.ttk.Treeview = None
+            self.Table_Pacijenti: tb.ttk.Treeview = None
+            self.Table_Logs: tb.ttk.Treeview = None
+            self.Table_MKB: tb.ttk.Treeview = None
             self.Settings_Tab = None
             
             self.TablePacijenti_Columns = tuple(['ID']+self.DB.patient[:5]+self.DB.diagnose+self.DB.patient[5:]+self.DB.operation)
@@ -300,10 +317,12 @@ class DBMS(Singleton):
             self.TableMKB_Columns = tuple(['ID']+self.DB.MKB)
             self.MKB_ColumnVars = {column: IntVar() for column in self.TableMKB_Columns}
             self.buttons.MKB_all = [i[0] for i in self.DB.select("mkb10 2010",*("MKB - šifra",))]
-            
 
             self.TableSlike_Columns = tuple(['ID']+self.DB.slike)
             self.Slike_ColumnVars = {column: IntVar() for column in self.TableSlike_Columns}
+
+            self.TableLogs_Columns = tuple(['ID']+self.DB.logs)
+            self.Logs_ColumnVars = {column: IntVar() for column in self.TableLogs_Columns}
 
             self.Search_Bar: Frame = None
             self.Search_Bar_ENTRIES = dict()
@@ -326,7 +345,7 @@ class DBMS(Singleton):
                 table.column(col, width=100, minwidth=50)
             elif col in ['Dg Latinski']:
                 table.column(col, width=480, minwidth=270)
-            elif col in ['Opis Dijagnoza']:
+            elif col in ['Opis Dijagnoze']:
                 table.column(col, width=840)
             elif col in ['Naziv','Gostujući Specijalizanti']:
                 table.column(col, width=180, minwidth=120)
@@ -374,28 +393,48 @@ class DBMS(Singleton):
             self.Table_Pacijenti.insert('', END, values=formatted_row)
             self.PatientTable_IDs.append(row[0])
 
-    def fill_TableMKB(self,table):
-        for i, row in enumerate(table):
+    def fill_Tables_MKB_Logs(self,view,table):
+        for i, row in enumerate(view):
             formatted_row = [i+1] + [cell for cell in row]
-            self.Table_MKB.insert('', END, values=formatted_row)
+            table.insert('', END, values=formatted_row)
 
     def fill_TableSlike(self,table,condition):
         for i, row in enumerate(table):
             if row[0] in condition:
-                formatted_row = [i+1] + [cell if i!=0 else "_".join(cell.split('_')[:2]) \
-                                            for i,cell in enumerate(row[1:])]
+                formatted_row = [i+1] + [f"{cell:,.2f} MB" if isinstance(cell,float) \
+                                            else "_".join(cell.split('_')[:2]) if i==0\
+                                                else cell for i,cell in enumerate(row[1:])]
                 self.buttons.Table_Slike.insert('', END, values=formatted_row)
 
     def showall_data(self):
-        focus = self.NoteBook.index(self.NoteBook.select())
+        def Result(query_method):
+            result = query_method
+            error, full_error = None,None
+            Time = datetime.now()
+            Time = Time.strftime("%Y-%m-%d %H:%M:%S")
+            email = self.GD.get_user_email()
+            if isinstance(result,dict):
+                error = result['Error']
+                full_error = result['Full Error']
+                full_query = self.DB.QUERY
+                full_query = self.DB.format_sql(full_query)
+                self.DB.execute_Insert('logs',**{'email':email, 'Time':Time,
+                                                 'Error':error, 'Full Error':full_error,
+                                                 'Query':"SELECT",'Full Query':full_query})
+                return None,None
+            else:
+                view,query = result
+                self.DB.execute_Insert('logs',**{'email':email, 'Time':Time,
+                                                 'Query':"SELECT",'Full Query':query})
+                return view,query
+
+        focus = self.buttons.NoteBook.index(self.buttons.NoteBook.select())
         if focus==0:
             columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
             self.PatientTable_IDs.clear()
             
-            if self.DB.Admin is False:
-                view = self.DB.join_select("pacijenti",*(['id_pacijent']+columns))
-            elif self.DB.Admin is True:
-                view,query = self.DB.join_select("pacijenti",*(['id_pacijent']+columns))
+            view, query = Result(self.DB.join_select("pacijenti",*(['id_pacijent']+columns)))
+            if self.DB.Admin is True:
                 Messagebox.ok(parent=self.buttons.MessageBoxParent ,title="Show All Pacijenti", message=query)
             
             for item in self.Table_Pacijenti.get_children():
@@ -405,30 +444,38 @@ class DBMS(Singleton):
         elif focus==1:
             columns = self.selected_columns(self.MKB_ColumnVars.items(),self.Table_MKB)
 
-            if self.DB.Admin is False:
-                view = self.DB.select("mkb10 2010",*(columns))
-            elif self.DB.Admin is True:
-                view,query = self.DB.select("mkb10 2010",*(columns))
+            view, query = Result(self.DB.select("mkb10 2010",*(columns)))
+            if self.DB.Admin is True:
                 Messagebox.ok(parent=self.buttons.MessageBoxParent ,title="Show All MKB10", message=query)
 
             for item in self.Table_MKB.get_children():
                 self.Table_MKB.delete(item)
             if view and len(view)!=0:
-                self.fill_TableMKB(view)
+                self.fill_Tables_MKB_Logs(view,self.Table_MKB)
 
         elif focus==2:
             columns = self.selected_columns(self.Slike_ColumnVars.items(),self.buttons.Table_Slike)
 
-            if self.DB.Admin is False:
-                view = self.DB.select("slike",*(['id_pacijent']+columns))
-            elif self.DB.Admin is True:
-                view,query = self.DB.select("slike",*(['id_pacijent']+columns))
+            view, query = Result(self.DB.select("slike",*(['id_pacijent']+columns)))
+            if self.DB.Admin is True:
                 Messagebox.ok(parent=self.buttons.MessageBoxParent ,title="Show All Slike", message=query)
 
             for item in self.buttons.Table_Slike.get_children():
                 self.buttons.Table_Slike.delete(item)
             if view and len(view)!=0:
                 self.fill_TableSlike(view,self.PatientTable_IDs)
+
+        elif focus==3:
+            columns = self.selected_columns(self.Logs_ColumnVars.items(),self.Table_Logs)
+
+            view, query = Result(self.DB.select("logs",*(columns)))
+            if self.DB.Admin is True:
+                Messagebox.ok(parent=self.buttons.MessageBoxParent ,title="Show All Logs", message=query)
+
+            for item in self.Table_Logs.get_children():
+                self.Table_Logs.delete(item)
+            if view and len(view)!=0:
+                self.fill_Tables_MKB_Logs(view,self.Table_Logs)
         else:
             return
 
@@ -475,7 +522,7 @@ class DBMS(Singleton):
                     else:
                         return
 
-        focus = self.NoteBook.index(self.NoteBook.select())
+        focus = self.buttons.NoteBook.index(self.buttons.NoteBook.select())
         if focus==0:
             columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
             self.PatientTable_IDs.clear()
@@ -505,7 +552,7 @@ class DBMS(Singleton):
             for item in self.Table_MKB.get_children():
                 self.Table_MKB.delete(item)
             if view and len(view)!=0:
-                self.fill_TableMKB(view)
+                self.fill_Tables_MKB_Logs(view,self.Table_MKB)
 
         elif focus==2:
             columns = self.selected_columns(self.Slike_ColumnVars.items(),self.buttons.Table_Slike)
@@ -521,6 +568,21 @@ class DBMS(Singleton):
                 self.buttons.Table_Slike.delete(item)
             if view and len(view)!=0:
                 self.fill_TableSlike(view,self.PatientTable_IDs)
+
+        elif focus==3:
+            columns = self.selected_columns(self.Logs_ColumnVars.items(),self.Table_Logs)
+            searching = searching_dict_create()
+
+            if self.DB.Admin is False:
+                view = self.DB.select("logs",*(['id_log']+columns),**searching)
+            elif self.DB.Admin is True:
+                view,query = self.DB.select("logs",*(['id_log']+columns),**searching)
+                Messagebox.ok(parent=self.buttons.MessageBoxParent ,title="Search Logs", message=query)
+
+            for item in self.Table_Logs.get_children():
+                self.Table_Logs.delete(item)
+            if view and len(view)!=0:
+                self.fill_Tables_MKB_Logs(view,self.Table_Logs)
 
     def filtered(self,columns):
         where = {}
@@ -571,6 +633,7 @@ class DBMS(Singleton):
         except KeyError:
             pass
         self.buttons.PatientInfo.config(text=TEXT)
+        self.buttons.FormTitle[0].configure(bootstyle='success')
       
     def tab_change(self,event):
         def filter_buttons_state(state):
@@ -590,13 +653,20 @@ class DBMS(Singleton):
                     if Widget.winfo_ismapped():
                         Widget.grid_remove() 
 
-        focus = self.NoteBook.index(self.NoteBook.select())
+        focus = self.buttons.NoteBook.index(self.buttons.NoteBook.select())
         if focus==0:
+            self.showall_data()
             tab_swapping(self.TablePacijenti_Columns[1:],'normal')
         elif focus==1:
+            self.showall_data()
             tab_swapping(self.TableMKB_Columns[1:],'disabled')
         elif focus==2:
+            self.showall_data()
+            self.buttons.Slike_HideTable.grid()
             tab_swapping(self.TableSlike_Columns[1:],'disabled')
+        elif focus==3:
+            self.showall_data()
+            tab_swapping(self.TableLogs_Columns[1:],'disabled')
         else:
             self.Search_Bar.grid_remove()
         

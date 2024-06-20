@@ -1,10 +1,6 @@
-import sqlite3
-from tkinter import simpledialog
-import ttkbootstrap as tb
-import sqlparse
-from datetime import date
-from B_Decorators import Singleton
-
+from A_Variables import *
+from B_Decorators import password,error_cathcer
+from C_GoogleDrive import GoogleDrive_User
 
 class PasswordDialog(simpledialog.Dialog):
     def __init__(self, parent, title):
@@ -23,6 +19,7 @@ class Database:
     def __init__(self,database) -> None:
         print(f"__INITIALIZING__ {Database}")
         self.Admin = False
+        self.GodMode = False
         self.database = database
 
         self.connection = None
@@ -35,6 +32,8 @@ class Database:
         self.diagnose = self.show_columns('pacijenti dijagnoza')[-2:]
         self.operation = self.show_columns('operaciona lista')[1:]
         self.slike = self.show_columns('slike')[2:-1]
+        self.logs = self.show_columns('logs')[1:-2]
+        print(self.logs)
 
     def connect(self):
         self.connection = sqlite3.connect(self.database)
@@ -45,15 +44,21 @@ class Database:
             self.cursor.close()
             self.connection.close()
 
-    def GodMode(self,event,parent):
+    def GodMode_Password(self,event,parent,notebook:tb.Notebook):
         if not self.Admin:
             dialog = PasswordDialog(parent, "GodMode Unlocking...")
             if dialog.password=='666':
                 self.Admin = True
+                notebook.select(3)
+            elif dialog.password==password():
+                self.Admin = True
+                self.GodMode = True
         else:
-            dialog = PasswordDialog(parent, "GodMode Removing...")
+            txt = "GodMode" if self.GodMode else "Admin"
+            dialog = PasswordDialog(parent, f"{txt} Removing...")
             if dialog.password=='33':
                 self.Admin = False
+                self.GodMode = False
 
     def format_sql(self,query):
         formatted_query = sqlparse.format(query, reindent=True, keyword_case='upper')
@@ -71,6 +76,7 @@ class Database:
         else:
             return f"{col}='{value}' {andor} "
 
+    @error_cathcer
     def select(self, table, *args, **kwargs):
         try:
             self.connect()
@@ -99,15 +105,15 @@ class Database:
             self.cursor.execute(query)
             view = self.cursor.fetchall()
             
-            if self.Admin is False:
-                return view
-            elif self.Admin is True:
-                query = self.format_sql(query)
-                return view,query
+            query = self.format_sql(query)
+            print('----'*66)
+            print(query)
+            print('----'*66)
+            return view,query
         finally:
             self.close_connection()
             
-    
+    @error_cathcer
     def join_select(self, table, *args, **kwargs):
         try:
             self.connect()
@@ -168,11 +174,9 @@ class Database:
 
             self.cursor.execute(query)
             view = self.cursor.fetchall()
-            if self.Admin is False:
-                return view
-            elif self.Admin is True:
-                query = self.format_sql(query)
-                return view,query
+
+            query = self.format_sql(query)
+            return view,query
         finally:
             self.close_connection()
             
@@ -189,7 +193,7 @@ class Database:
         finally:
             self.close_connection()
             
-    
+    @error_cathcer
     def filter(self,columns):
         if not self.QUERY or 'FROM pacijenti' not in self.QUERY:
             return
@@ -213,11 +217,9 @@ class Database:
 
             self.cursor.execute(query)
             view = self.cursor.fetchall()
-            if self.Admin is False:
-                return view
-            elif self.Admin is True:
-                query = self.format_sql(query)
-                return view,query
+
+            query = self.format_sql(query)
+            return view,query
         finally:
             self.close_connection()
             
@@ -291,7 +293,6 @@ class Database:
 
             table = table if " " not in table else f"`{table}`"
             query = f"UPDATE {table} SET {settin} WHERE {id[0]} = ?"
-            print(query)
             self.cursor.execute(query,value)
             self.connection.commit()
         finally:
@@ -313,6 +314,7 @@ class Database:
 
             table = table if " " not in table else f"`{table}`"
             query = f"INSERT INTO {table} ({columns}) VALUES ({("?, "*counter).rstrip(", ")})"
+            print(query)
             self.cursor.execute(query,values)
             self.connection.commit()
         finally:
@@ -347,7 +349,39 @@ class Database:
             self.close_connection()
 
 if __name__=='__main__':
-    pass
+
+    #'''
+    rhmh = Database('RHMH.db')
+    table = rhmh.execute_selectquery("SELECT * FROM logs")
+    for i in table:
+        if i[4]=='Success':
+            continue
+        print()
+        for j in i:
+            print(j)
+
+    '''
+    rhmh.connect()
+    query = """CREATE TABLE logs (
+                id_log INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                Time TEXT NOT NULL,
+                Query TEXT NOT NULL,
+                Error TEXT DEFAULT 'Success',
+                `Full Query` TEXT NOT NULL,
+                `Full Error` TEXT
+            );"""
+    
+    
+    rhmh.cursor.execute("DROP TABLE IF EXISTS logs")
+    rhmh.cursor.execute(query)
+    rhmh.close_connection()
+
+    rhmh.Vaccum_DB()
+    #'''
+
+    #user = GoogleDrive_User()
+    #user.update_file(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
 
 
 

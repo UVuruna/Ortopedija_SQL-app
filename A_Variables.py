@@ -1,3 +1,39 @@
+from datetime import datetime, date
+
+# C_GoogleDrive
+import io
+import os
+import pickle
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload, MediaIoBaseUpload
+
+# D_SQLite_Connection
+import sqlite3
+import sqlparse
+from tkinter import simpledialog,messagebox
+import ttkbootstrap as tb
+
+# E_SQLite_DBMS
+from tkinter import *
+from ttkbootstrap import widgets
+from ttkbootstrap.dialogs.dialogs import Messagebox
+import customtkinter as ctk
+
+# F_Media_Manipulation
+from PIL import Image, ImageTk, ImageDraw
+import cv2
+import pillow_heif
+import subprocess
+#import easyocr
+import numpy as np
+
+# G_Viewer
+from tkinter.font import nametofont
+import threading
+
+
 
 FONT = "Montserrat"
 F_SIZE = 11
@@ -85,7 +121,6 @@ default_form_buttons = [("ADD",None),
 alternative_form_buttons = [("ADD\nIMAGE",None),
                             ("UPDATE\nIMAGE",None),
                             ("DELETE\nIMAGE",'danger'),
-                            ("SHOW\nIMAGES",'info'),
                             ("DOWNLOAD\nIMAGE",'info'),
                             ("FILL FROM\nIMAGE",'info')]
 
@@ -100,7 +135,7 @@ MKB_Entry = {"MKB - šifra":("MKB",7),
 max_searchby = 5
 
 IMAGES = {"Swap":[("C:/Users/vurun/Desktop/App/swap.png",33,33),("C:/Users/vurun/Desktop/App/swap_hover.png",33,33)],
-          "Hide":[("C:/Users/vurun/Desktop/App/hide.png",48,33),("C:/Users/vurun/Desktop/App/hide_hover5.png",48,33)]}
+          "Hide":[("C:/Users/vurun/Desktop/App/hide.png",48,33),("C:/Users/vurun/Desktop/App/hide_hover2.png",48,33)]}
 
 ThemeColors_Dict = {}
 

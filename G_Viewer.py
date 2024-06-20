@@ -1,16 +1,6 @@
-from tkinter import *
-from tkinter import messagebox
-import ttkbootstrap as tb
-from ttkbootstrap import widgets
-from ttkbootstrap.dialogs.dialogs import Messagebox
-import customtkinter as ctk
-from PIL import Image, ImageTk
-from tkinter.font import nametofont
 from A_Variables import *
-import E_SQLite_DBMS as SQLite
 from C_GoogleDrive import GoogleDrive_User
-import threading
-import time
+import E_SQLite_DBMS as SQLite
 
 class TitleFrame:
     def __init__(self,root) -> None: 
@@ -44,6 +34,7 @@ class FormFrame:
     def __init__(self, root:Tk) -> None:
         self.form_true = BooleanVar()
         self.form_true.set(True)
+        self.root = root
 
         self.DBMS = SQLite.DBMS()
         self.buttons = SQLite.Buttons()
@@ -51,19 +42,18 @@ class FormFrame:
                                             self.buttons.Update_Patient,
                                             self.buttons.Delete_Patient,
                                             self.buttons.Clear_Form]
-        FormFrame.AlternativeForm_button_fun = [self.buttons.Add_Image,
+        FormFrame.AlternativeForm_button_fun = [self.buttons.Download_Image,
+                                                self.buttons.Fill_FromImage,
+                                                self.buttons.Add_Image,
                                                 self.buttons.Update_Image,
-                                                self.buttons.Delete_Image,
-                                                self.buttons.Show_Images,
-                                                self.buttons.Download_Image,
-                                                self.buttons.Fill_FromImage]
+                                                self.buttons.Delete_Image,]
 
         self.valid_dg = root.register(self.buttons.validate_dg)
             # PARENT FRAME for FORMS
         self.Form_Frame = Frame(root, bd=bd_main_frame, relief=RIDGE)
         self.Form_Frame.grid(row=1, column=0, padx=shape_padding[0], pady=shape_padding[1], sticky="nsew")
 
-        self.Form_TopLabel(form_name)
+        self.buttons.FormTitle = (self.Form_TopLabel(form_name),labelColor)
 
             # DEFAULT FORM CREATE
         self.DefaultForm = Frame(self.Form_Frame)
@@ -75,7 +65,7 @@ class FormFrame:
         self.AlternativeForm.grid(row=1, column=0, columnspan=4, sticky="nsew")
         self.AlternativeForm.grid_remove()
         self.FormPatient_Create(self.AlternativeForm,alternative_form_entry,form_groups['Alternative'],-2)
-        self.FormPatient_Buttons(self.AlternativeForm,[3],alternative_form_buttons,'alternative')
+        self.FormPatient_Buttons(self.AlternativeForm,[2],alternative_form_buttons,'alternative')
  
     def label_ImageLoad(self,images_list):
         return_images = []
@@ -102,13 +92,15 @@ class FormFrame:
 
         lbl = tb.Label(self.Form_Frame, anchor="center", bootstyle=labelColor, text=formname, font=font_groups)
         lbl.grid(row=0, column=1, columnspan=2, padx=title_padding[0], pady=title_padding[1], sticky="nswe")
+        return lbl
 
-    def Images_MiniTable_Create(self,frame,height):
+    def Images_MiniTable_Create(self,frame:Frame,height):
         scroll_x = tb.Scrollbar(frame, orient=HORIZONTAL, bootstyle=f"{bootstyle_table}-round")
         scroll_y = tb.Scrollbar(frame, orient=VERTICAL, bootstyle=f"{bootstyle_table}-round")
 
         table = tb.ttk.Treeview(frame, columns=["ID", "Slika"], xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set, height=height, show='tree')
         table.grid(row=0, column=0, pady=0, sticky="nsew")
+        table.bind("<Double-1>",lambda event,root=self.root: self.buttons.Show_Images(event,root))
         
         scroll_x.grid(row=1, column=0, sticky="ew")
         scroll_y.grid(row=0, column=1, sticky="ns")
@@ -248,9 +240,9 @@ class WindowFrame:
         
 
             # NOTE NOTEBOOK
-        self.DBMS.NoteBook = tb.Notebook(Window_Frame)#, bootstyle=bootstyle_table)
-        self.DBMS.NoteBook.grid(row=notebookROW, column=0, padx=shape_padding[0], pady=shape_padding[1], sticky="nsew")
-        self.DBMS.NoteBook.bind("<<NotebookTabChanged>>", self.DBMS.tab_change)
+        self.buttons.NoteBook = tb.Notebook(Window_Frame)#, bootstyle=bootstyle_table)
+        self.buttons.NoteBook.grid(row=notebookROW, column=0, padx=shape_padding[0], pady=shape_padding[1], sticky="nsew")
+        self.buttons.NoteBook.bind("<<NotebookTabChanged>>", self.DBMS.tab_change)
 
                 # NOTEBOOK Tab PACIJENTI
         self.DBMS.Table_Pacijenti = self.NotebookTab_Create("Pacijenti",table=True,
@@ -261,25 +253,34 @@ class WindowFrame:
         self.DBMS.selected_columns(self.DBMS.Pacijenti_ColumnVars.items(),self.DBMS.Table_Pacijenti)
 
                 # NOTEBOOK Tab MKB Sifarnik
-        for val in self.DBMS.MKB_ColumnVars.values():
-            val.set(1)
         self.DBMS.Table_MKB = self.NotebookTab_Create("MKB10 2010",table=True,
                                 extra=(self.MKB_Entry_Create,{'row':5,'column':0,'rowspan':1,'columnspan':2,}))
         self.DBMS.Table_MKB.bind("<ButtonRelease-1>",self.DBMS.fill_MKBForm)
         self.DBMS.Table_MKB.bind("<KeyRelease-Down>",self.DBMS.fill_MKBForm)
         self.DBMS.Table_MKB.bind("<KeyRelease-Up>",self.DBMS.fill_MKBForm)
+        for val in self.DBMS.MKB_ColumnVars.values():
+            val.set(1)
         self.DBMS.selected_columns(self.DBMS.MKB_ColumnVars.items(),self.DBMS.Table_MKB)
 
-                # NOTEBOOK Tab SLIKE,SETTINGS
+                
+        self.buttons.Table_Slike = self.NotebookTab_Create("Slike",table=F_SIZE*50, expand=(1,5),
+                                extra=(self.Slike_SideFrame,{'row':1,'column':5,'rowspan':2,'columnspan':1,}))
+        self.buttons.Table_Slike.bind("<ButtonRelease-1>",lambda event,root=root: self.buttons.add_ImageToCanvas(event,root))
+        self.buttons.Table_Slike.bind("<KeyRelease-Down>",lambda event,root=root: self.buttons.add_ImageToCanvas(event,root))
+        self.buttons.Table_Slike.bind("<KeyRelease-Up>",lambda event,root=root: self.buttons.add_ImageToCanvas(event,root))
         for val in self.DBMS.Slike_ColumnVars.values():
             val.set(1)
-        self.buttons.Table_Slike = self.NotebookTab_Create("Slike",table=True,
-                                extra=(self.Slike_SideFrame,{'row':1,'column':5,'rowspan':2,'columnspan':1,}),expand=(1,5))
-        self.buttons.Table_Slike.bind("<ButtonRelease-1>",self.buttons.add_ImageToCanvas)
-        self.buttons.Table_Slike.bind("<KeyRelease-Down>",self.buttons.add_ImageToCanvas)
-        self.buttons.Table_Slike.bind("<KeyRelease-Up>",self.buttons.add_ImageToCanvas)
         self.DBMS.selected_columns(self.DBMS.Slike_ColumnVars.items(),self.buttons.Table_Slike)
 
+            # NOTEBOOK Tab LOGS
+        self.AdminPage,self.DBMS.Table_Logs = self.NotebookTab_Create("Admin", table=True, expand=(1,5), returnboth=True,
+                                extra=(self.Log_SideFrame,{'row':1,'column':5,'rowspan':2,'columnspan':1,}))
+        for val in self.DBMS.Logs_ColumnVars.values():
+            val.set(1)
+        self.DBMS.selected_columns(self.DBMS.Logs_ColumnVars.items(),self.DBMS.Table_Logs)
+        self.buttons.NoteBook.hide(3)
+        
+            # SETTINGS TAB
         self.DBMS.Settings_Tab = self.NotebookTab_Create("Settings")
 
     def SearchBar_StaticPart(self,searchButtonROW):
@@ -388,19 +389,30 @@ class WindowFrame:
         if self.DBMS.Search_Bar_ON==max_searchby:
             self.Search_Add.grid_remove()
 
-    def NotebookTab_Create(self,txt,table=False,extra=False,expand=(1,0)):
-        notebook_frame = tb.Frame(self.DBMS.NoteBook)
-        self.DBMS.NoteBook.add(notebook_frame, text=txt)
+    def NotebookTab_Create(self,txt,table=False,extra=False,expand=(1,0),returnboth=False):
+        notebook_frame = tb.Frame(self.buttons.NoteBook)
+        self.buttons.NoteBook.add(notebook_frame, text=txt)
         if extra:
             extra_frame = Frame(notebook_frame)
             extra_frame.grid(row=extra[1]['row'], rowspan=extra[1]['rowspan'],
                              column=extra[1]['column'], columnspan=extra[1]['columnspan'], sticky="nswe")
             extra[0](extra_frame)
         if table:
-            scroll_x = tb.Scrollbar(notebook_frame, orient=HORIZONTAL, bootstyle=f"{bootstyle_table}-round")
-            scroll_y = tb.Scrollbar(notebook_frame, orient=VERTICAL, bootstyle=f"{bootstyle_table}-round")
+            
+            if str(table).isdigit():
+                parent_frame = Frame(notebook_frame, width=table)
+                parent_frame.grid(row=1,rowspan=2,column=0, columnspan=2, pady=0, sticky="nsew")
+                parent_frame.grid_propagate(False)
+                parent_frame.grid_rowconfigure(1, weight=1)
+                parent_frame.grid_columnconfigure(0, weight=1)
+                if txt=='Slike':
+                    self.buttons.Slike_HideTable = parent_frame
+            else:
+                parent_frame = notebook_frame
+            scroll_x = tb.Scrollbar(parent_frame, orient=HORIZONTAL, bootstyle=f"{bootstyle_table}-round")
+            scroll_y = tb.Scrollbar(parent_frame, orient=VERTICAL, bootstyle=f"{bootstyle_table}-round")
 
-            table = tb.ttk.Treeview(notebook_frame, columns=[], xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set)
+            table = tb.ttk.Treeview(parent_frame, columns=[], xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set)
             table.grid(row=1, column=0, pady=0, sticky="nsew")
             
             scroll_x.grid(row=2, column=0, sticky="ew")
@@ -411,9 +423,11 @@ class WindowFrame:
             notebook_frame.grid_rowconfigure(expand[0], weight=1)
             notebook_frame.grid_columnconfigure(expand[1], weight=1)
             
-            
-            
-        return table if table else notebook_frame
+        if returnboth:
+            return notebook_frame,table
+        elif table:
+            return table
+        return notebook_frame
 
     def MKB_Entry_Create(self,parent_frame):
         parent_frame.grid_columnconfigure(1,weight=1)
@@ -445,7 +459,18 @@ class WindowFrame:
         #self.buttons.Slike_Viewer.configure(bd=5, relief='solid', highlightthickness=2, highlightbackground='black')
 
         parent_frame.grid_columnconfigure(0,weight=1)
-        parent_frame.grid_rowconfigure(0,weight=1)       
+        parent_frame.grid_rowconfigure(0,weight=1) 
+
+    def Log_SideFrame(self,parent_frame):
+        lbl1 = tb.Label(parent_frame,text="Query")
+        lbl1.grid(row=0, column=0)
+        text1 = tb.Text(parent_frame, width=form_large_width, height=6, font=font_entry)
+        text1.grid(row=1, column=0)
+
+        #self.buttons.Slike_Viewer.configure(bd=5, relief='solid', highlightthickness=2, highlightbackground='black')
+
+        parent_frame.grid_columnconfigure(0,weight=1)
+        parent_frame.grid_rowconfigure(1,weight=1)     
 
     def Checkbutton_Create(self,parent_frame):
         table = self.DBMS.TablePacijenti_Columns
@@ -507,7 +532,8 @@ class GUI:
         self.menu = self.RootMenu_Create()
 
         
-        self.root.bind("\u004D\u0055\u0056",lambda event,root=self.root: dbms.DB.GodMode(event,root))
+        self.root.bind("\u004D\u0055\u0056",lambda event,root=self.root,notebook=dbms.buttons.NoteBook: 
+                                                    dbms.DB.GodMode_Password(event,root,notebook))
         self.root.protocol("WM_DELETE_WINDOW",self.EXIT)
    
     def EXIT(self):
