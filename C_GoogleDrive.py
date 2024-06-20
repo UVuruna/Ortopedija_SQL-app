@@ -1,10 +1,11 @@
 from A_Variables import *
-from B_Decorators import Singleton
+from B_Decorators import Singleton,method_efficency
 
 class GoogleDrive_User(Singleton):
     _initialized = False
     def __init__(self) -> None:
-        if not self._initialized:
+        if not self._initialized: # moze self ovde
+            GoogleDrive_User._initialized = True
             print(f"__INITIALIZING__ {GoogleDrive_User}")
             self.SCOPES = [ 'https://www.googleapis.com/auth/drive',
                             'https://www.googleapis.com/auth/drive.file',
@@ -14,6 +15,11 @@ class GoogleDrive_User(Singleton):
             self.creds = self.authenticate_google_drive()
             self.drive_service = build('drive', 'v3', credentials=self.creds)
             GoogleDrive_User._initialized = True
+
+            # DECORATING
+            self.Session = {'User':self.get_user_email()}
+            self.LOG = dict()
+
 
     def authenticate_google_drive(self):
         creds = None
@@ -44,10 +50,10 @@ class GoogleDrive_User(Singleton):
                 status, done = downloader.next_chunk()
                 print("Download %d%%." % int(status.progress() * 100))
 
-    def update_file(self, file_id, file_path, mime_type):
+    def upload_Update(self, file_id, file_path, mime_type):
         media = MediaFileUpload(file_path, mimetype=mime_type)
         self.drive_service.files().update(fileId=file_id, media_body=media).execute()
-        print('File ID: %s' % file_id)
+        print(f'File ID: {file_id}')
         return file_id 
 
     def get_file_blob(self, file_id):
@@ -84,27 +90,9 @@ class GoogleDrive_User(Singleton):
         user_info = oauth2_service.userinfo().get().execute()
         return user_info.get('email')
 
-    def add_test_user(self, user_email):
-        service = build('iam', 'v1', credentials=self.creds)
-        project_id = 'rhmh-sqlite'  # ID vašeg GCP projekta
-        service_account_email = f'{project_id}@{project_id}.iam.gserviceaccount.com'
-        resource = {
-            'keyAlgorithm': 'KEY_ALG_RSA_2048',
-            'privateKeyType': 'TYPE_GOOGLE_CREDENTIALS_FILE'
-        }
-        response = service.projects().serviceAccounts().keys().create(
-            name=f'projects/{project_id}/serviceAccounts/{service_account_email}',
-            body=resource
-        ).execute()
-        return response
-
-
 
 if __name__ == '__main__':
 
     user = GoogleDrive_User()
     user_email = user.get_user_email()
     print(user_email)
-
-
-

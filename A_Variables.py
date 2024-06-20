@@ -1,4 +1,8 @@
+# B_Decorators
 from datetime import datetime, date
+import time
+import functools
+import traceback
 
 # C_GoogleDrive
 import io
@@ -139,8 +143,8 @@ IMAGES = {"Swap":[("C:/Users/vurun/Desktop/App/swap.png",33,33),("C:/Users/vurun
 
 ThemeColors_Dict = {}
 
-GoogleDrive_Slike = ['1e-KyYcDIt_V2Gn79blz0gESZLpeV4xVn']
-GoogleDrive_DB = ['1ybEVItyB75BParYUN2-ab_oVe2tBj1NW']
+GD_Slike_folder = ['1e-KyYcDIt_V2Gn79blz0gESZLpeV4xVn']
+GD_RHMH_folder = ['1ybEVItyB75BParYUN2-ab_oVe2tBj1NW']
 RHMH_DB = {'id':'1cwOFgPjVRhj6qQ9335RJVdkUkBhSvcJ8','mime':'application/x-sqlite3'}
 
 MIME = {'PNG' : 'image/png',
@@ -148,3 +152,6 @@ MIME = {'PNG' : 'image/png',
         'HEIC' : 'image/heic',
         'MP4': 'video/mp4',
         'MOV': 'video/quicktime'}
+
+WAIT = 10 # ms
+BUTTON_LOCK = 500 # ms

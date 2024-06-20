@@ -1,6 +1,7 @@
 from A_Variables import *
+from B_Decorators import method_efficency,spam_stopper,error_catcher
 from C_GoogleDrive import GoogleDrive_User
-import E_SQLite_DBMS as SQLite
+import F_DBMS as SQLite
 
 class TitleFrame:
     def __init__(self,root) -> None: 
@@ -100,7 +101,7 @@ class FormFrame:
 
         table = tb.ttk.Treeview(frame, columns=["ID", "Slika"], xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set, height=height, show='tree')
         table.grid(row=0, column=0, pady=0, sticky="nsew")
-        table.bind("<Double-1>",lambda event,root=self.root: self.buttons.Show_Images(event,root))
+        table.bind("<Double-1>",self.buttons.Show_Image)
         
         scroll_x.grid(row=1, column=0, sticky="ew")
         scroll_y.grid(row=0, column=1, sticky="ns")
@@ -182,8 +183,10 @@ class FormFrame:
                 Buttons_Frame.grid(row=18+i, columnspan=4)
                 Buttons_Frame.bind("<Enter>",lambda event: Buttons_Frame.focus_force())
 
-            butt = ctk.CTkButton(Buttons_Frame, text=but, width=form_butt_width,height=form_butt_height, corner_radius=12, font=font_label(), command=cmd)
+            butt = ctk.CTkButton(Buttons_Frame, text=but, width=form_butt_width,height=form_butt_height, corner_radius=12, font=font_label(),
+                                 command=cmd)
             butt.grid(row=0, column=i, padx=form_padding_button[0], pady=form_padding_button[1])
+            self.buttons.Buttons[but] = butt
             if btype:
                 butt.configure(fg_color=ThemeColors[btype], text_color=ThemeColors[dangerButtTxtColor])
 
@@ -265,20 +268,29 @@ class WindowFrame:
                 
         self.buttons.Table_Slike = self.NotebookTab_Create("Slike",table=F_SIZE*50, expand=(1,5),
                                 extra=(self.Slike_SideFrame,{'row':1,'column':5,'rowspan':2,'columnspan':1,}))
-        self.buttons.Table_Slike.bind("<ButtonRelease-1>",lambda event,root=root: self.buttons.add_ImageToCanvas(event,root))
-        self.buttons.Table_Slike.bind("<KeyRelease-Down>",lambda event,root=root: self.buttons.add_ImageToCanvas(event,root))
-        self.buttons.Table_Slike.bind("<KeyRelease-Up>",lambda event,root=root: self.buttons.add_ImageToCanvas(event,root))
+        self.buttons.Table_Slike.bind("<ButtonRelease-1>", self.buttons.add_ImageToCanvas)
+        self.buttons.Table_Slike.bind("<KeyRelease-Down>", self.buttons.add_ImageToCanvas)
+        self.buttons.Table_Slike.bind("<KeyRelease-Up>", self.buttons.add_ImageToCanvas)
         for val in self.DBMS.Slike_ColumnVars.values():
             val.set(1)
         self.DBMS.selected_columns(self.DBMS.Slike_ColumnVars.items(),self.buttons.Table_Slike)
 
             # NOTEBOOK Tab LOGS
-        self.AdminPage,self.DBMS.Table_Logs = self.NotebookTab_Create("Admin", table=True, expand=(1,5), returnboth=True,
+        self.DBMS.Table_Logs = self.NotebookTab_Create("Logs", table=True, expand=(1,5),
                                 extra=(self.Log_SideFrame,{'row':1,'column':5,'rowspan':2,'columnspan':1,}))
+        self.DBMS.Table_Logs.bind("<ButtonRelease-1>",self.DBMS.fill_LogsForm)
+        self.DBMS.Table_Logs.bind("<KeyRelease-Down>",self.DBMS.fill_LogsForm)
+        self.DBMS.Table_Logs.bind("<KeyRelease-Up>",self.DBMS.fill_LogsForm)
         for val in self.DBMS.Logs_ColumnVars.values():
             val.set(1)
         self.DBMS.selected_columns(self.DBMS.Logs_ColumnVars.items(),self.DBMS.Table_Logs)
-        self.buttons.NoteBook.hide(3)
+        #self.buttons.NoteBook.hide(3)
+
+            # NOTEBOOK Tab SESSION
+        self.DBMS.Table_Session = self.NotebookTab_Create("Session", table=True)
+        for val in self.DBMS.Session_ColumnVars.values():
+            val.set(1)
+        self.DBMS.selected_columns(self.DBMS.Session_ColumnVars.items(),self.DBMS.Table_Session)
         
             # SETTINGS TAB
         self.DBMS.Settings_Tab = self.NotebookTab_Create("Settings")
@@ -288,23 +300,28 @@ class WindowFrame:
         tb.Label(self.DBMS.Search_Bar, anchor='center', bootstyle=labelColor, text="SEARCH BY", font=font_entry).grid(
                             row=0, column=1, rowspan=max_searchby, padx=form_padding_button[0], pady=form_padding_button[1], sticky="nsew")
             # FILTER OPTIONS
-        self.buttons.FilterButtons = Frame(self.DBMS.Search_Bar)
-        self.buttons.FilterButtons.grid(row=0,column=searchButtonROW,rowspan=max_searchby,sticky="se")
-        self.Roundbutton_Create(self.buttons.FilterButtons)    
-        ctk.CTkButton(self.buttons.FilterButtons, text="FILTER\nBOTH", width=form_butt_width, height=form_butt_height, corner_radius=10,
+        filterFrame = Frame(self.DBMS.Search_Bar)
+        filterFrame.grid(row=0,column=searchButtonROW,rowspan=max_searchby,sticky="se")
+        self.Roundbutton_Create(filterFrame)    
+        butf = ctk.CTkButton(filterFrame, text="FILTER\nBOTH", width=form_butt_width, height=form_butt_height, corner_radius=10,
                         font=font_label(), text_color=ThemeColors['dark'], fg_color=ThemeColors['info'], text_color_disabled=ThemeColors['dark'],
-                            command=lambda column=["Datum Operacije","Datum Otpusta"]: self.DBMS.filtered(column)).grid(
-                                row=0, column=2, rowspan=max_searchby,
-                                    padx=(form_padding_button[0][0],33), pady=form_padding_button[1], sticky='se')
+                            command=lambda column=["Datum Operacije","Datum Otpusta"]: self.DBMS.filtered(column))
+        butf.grid(row=0, column=2, rowspan=max_searchby,
+                padx=(form_padding_button[0][0],33), pady=form_padding_button[1], sticky='se')
+        self.buttons.Buttons['Filter Both'] = butf
+
             # BUTTONS for SEARCH and SHOWALL
-        ctk.CTkButton(self.DBMS.Search_Bar, text="SEARCH", width=form_butt_width, height=form_butt_height, corner_radius=10,
-                        font=font_label(), command=self.DBMS.search_data).grid(
-                            row=0, column=searchButtonROW+3, rowspan=max_searchby,
-                                padx=form_padding_button[0], pady=form_padding_button[1], sticky='se')
-        ctk.CTkButton(self.DBMS.Search_Bar, text="SHOW ALL", width=form_butt_width, height=form_butt_height, corner_radius=10,
-                        font=font_label(), command=self.DBMS.showall_data).grid(
-                            row=0, column=searchButtonROW+4, rowspan=max_searchby,
-                                padx=form_padding_button[0], pady=form_padding_button[1], sticky='se')
+        buts = ctk.CTkButton(self.DBMS.Search_Bar, text="SEARCH", width=form_butt_width, height=form_butt_height, corner_radius=10,
+                        font=font_label(), command=self.DBMS.search_data)
+        buts.grid(row=0, column=searchButtonROW+3, rowspan=max_searchby,
+                padx=form_padding_button[0], pady=form_padding_button[1], sticky='se')
+        self.buttons.Buttons['Search'] = buts
+
+        buta = ctk.CTkButton(self.DBMS.Search_Bar, text="SHOW ALL", width=form_butt_width, height=form_butt_height, corner_radius=10,
+                        font=font_label(), command=self.DBMS.showall_data)
+        buta.grid(row=0, column=searchButtonROW+4, rowspan=max_searchby,
+                padx=form_padding_button[0], pady=form_padding_button[1], sticky='se')
+        self.buttons.Buttons['Show All'] = buta
 
     def SearchBar_AddRemove(self):
                 # BUTTONS for adding and removing SEARCH CRITERIA
@@ -389,7 +406,7 @@ class WindowFrame:
         if self.DBMS.Search_Bar_ON==max_searchby:
             self.Search_Add.grid_remove()
 
-    def NotebookTab_Create(self,txt,table=False,extra=False,expand=(1,0),returnboth=False):
+    def NotebookTab_Create(self,txt,table=False,extra=False,expand=(1,0)):
         notebook_frame = tb.Frame(self.buttons.NoteBook)
         self.buttons.NoteBook.add(notebook_frame, text=txt)
         if extra:
@@ -398,7 +415,6 @@ class WindowFrame:
                              column=extra[1]['column'], columnspan=extra[1]['columnspan'], sticky="nswe")
             extra[0](extra_frame)
         if table:
-            
             if str(table).isdigit():
                 parent_frame = Frame(notebook_frame, width=table)
                 parent_frame.grid(row=1,rowspan=2,column=0, columnspan=2, pady=0, sticky="nsew")
@@ -422,12 +438,8 @@ class WindowFrame:
 
             notebook_frame.grid_rowconfigure(expand[0], weight=1)
             notebook_frame.grid_columnconfigure(expand[1], weight=1)
-            
-        if returnboth:
-            return notebook_frame,table
-        elif table:
-            return table
-        return notebook_frame
+
+        return table if table else notebook_frame
 
     def MKB_Entry_Create(self,parent_frame):
         parent_frame.grid_columnconfigure(1,weight=1)
@@ -440,6 +452,7 @@ class WindowFrame:
                     button = ctk.CTkButton(frame, text=butt, width=form_butt_width, height=form_butt_height, corner_radius=10,
                         font=font_label(), command=WindowFrame.MKB_buttons[j])
                     button.grid(row=0, column=j,padx=form_padding_button[0], pady=form_padding_button[1], sticky='nse')
+                    self.buttons.Buttons[butt] = button
                     if btype:
                         button.configure(fg_color=ThemeColors[btype], text_color=ThemeColors[dangerButtTxtColor])
             else:
@@ -462,10 +475,18 @@ class WindowFrame:
         parent_frame.grid_rowconfigure(0,weight=1) 
 
     def Log_SideFrame(self,parent_frame):
-        lbl1 = tb.Label(parent_frame,text="Query")
+        lbl1 = tb.Label(parent_frame,text="Full Query", anchor="center", justify='center', bootstyle=labelColor, font=font_label())
         lbl1.grid(row=0, column=0)
-        text1 = tb.Text(parent_frame, width=form_large_width, height=6, font=font_entry)
-        text1.grid(row=1, column=0)
+        text1 = tb.Text(parent_frame, width=form_large_width, font=font_entry)
+        text1.grid(row=1, column=0, sticky='nsew')
+        self.buttons.Logs_FormVariables['Full Query'] = text1
+        lbl1 = tb.Label(parent_frame,text="Full Error", anchor="center", justify='center', bootstyle=labelColor, font=font_label())
+        lbl1.grid(row=2, column=0)
+        text2 = tb.Text(parent_frame, width=form_large_width, font=font_entry)
+        text2.grid(row=3, column=0, sticky='nsew')
+        self.buttons.Logs_FormVariables['Full Error'] = text2
+
+        parent_frame.grid_rowconfigure([1,3],weight=1)
 
         #self.buttons.Slike_Viewer.configure(bd=5, relief='solid', highlightthickness=2, highlightbackground='black')
 
@@ -504,12 +525,14 @@ class WindowFrame:
             cb = tb.Checkbutton(parent_frame, text=txt, variable=self.buttons.FilterOptions[col][1], bootstyle="success, round-toggle")
             cb.grid(row=0, column=i, padx=form_padding_button[0], pady=(0,3))
 
-            ctk.CTkButton(parent_frame, text="FILTER", width=form_butt_width, height=form_butt_height//2, corner_radius=10,
+            butt = ctk.CTkButton(parent_frame, text="FILTER", width=form_butt_width, height=form_butt_height//2, corner_radius=10,
                             font=font_label(), text_color=ThemeColors['dark'], fg_color=ThemeColors['info'], text_color_disabled=ThemeColors['dark'],
-                                command=lambda column=col: self.DBMS.filtered(column)).grid(
-                                    row=1, column=i, padx=form_padding_button[0], pady=(0,3))
+                                command=lambda column=col: self.DBMS.filtered(column))
+            butt.grid(row=1, column=i, padx=form_padding_button[0], pady=(0,3))
+            self.buttons.Buttons[f"Filter {txt}"] = butt
 
 class GUI:
+    @method_efficency(None)
     def __init__(self, root:Tk):
         self.GoogleDrive = GoogleDrive_User()
         self.GoogleDrive.download_file(RHMH_DB['id'],"RHMH.db")
@@ -530,21 +553,33 @@ class GUI:
         self.Window = WindowFrame(self.root)
 
         self.menu = self.RootMenu_Create()
-
-        
         self.root.bind("\u004D\u0055\u0056",lambda event,root=self.root,notebook=dbms.buttons.NoteBook: 
                                                     dbms.DB.GodMode_Password(event,root,notebook))
         self.root.protocol("WM_DELETE_WINDOW",self.EXIT)
+        dbms.buttons.ROOT = self.root
+        self.root.update()
+        self.Buttons_SpamStopper()
    
+    def Buttons_SpamStopper(self):
+        counter=0
+        for button in self.update.Buttons.values():
+            counter+=1
+            last_cmd = button.cget('command')
+            button.configure(command=spam_stopper(button,self.root)(last_cmd))
+        print(counter)
+
     def EXIT(self):
-        if messagebox.askyesnocancel("Close", "Do you want to close the application?"):
+        response = Messagebox.show_question("Do you want to save the changes before exiting?", "Close", buttons=["Exit:secondary","Save:success"])
+        if response == "Update":
             if self.update.UPDATE:
                 threading.Thread(target=self.uploading_to_GoogleDrive).start()
+            root.destroy()
+        if response == "Exit":
             root.destroy()
     
     def uploading_to_GoogleDrive(self):
         print("Uploading to Google Drive...")
-        self.GoogleDrive.update_file(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
+        self.GoogleDrive.upload_Update(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
         print("Upload finished")
 
     def show_form_frame(self):
@@ -615,8 +650,8 @@ entry_font = nametofont('TkTextFont')
 default_font.configure(size=def_font[1])
 entry_font.configure(size=def_font[1])
 
-
-
+GD = GoogleDrive_User()
+GUI = method_efficency(GD.Session)(error_catcher(GD.LOG)(GUI))
 app = GUI(root)
 
 root.mainloop()

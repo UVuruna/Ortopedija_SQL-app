@@ -1,5 +1,5 @@
 from A_Variables import *
-from B_Decorators import password,error_cathcer
+from B_Decorators import password,error_catcher,method_efficency
 from C_GoogleDrive import GoogleDrive_User
 
 class PasswordDialog(simpledialog.Dialog):
@@ -18,13 +18,17 @@ class PasswordDialog(simpledialog.Dialog):
 class Database:
     def __init__(self,database) -> None:
         print(f"__INITIALIZING__ {Database}")
+        self.GD = GoogleDrive_User()
         self.Admin = False
         self.GodMode = False
         self.database = database
+        self.UserSession = dict()
+        self.LOG = self.GD.LOG
 
         self.connection = None
         self.cursor = None
-        self.QUERY = str()
+        self.PatientQuery = str()
+        self.LoggingQuery = str()
 
         # KOLONE TABELA
         self.MKB = self.show_columns('mkb10 2010')[1:]        
@@ -32,17 +36,22 @@ class Database:
         self.diagnose = self.show_columns('pacijenti dijagnoza')[-2:]
         self.operation = self.show_columns('operaciona lista')[1:]
         self.slike = self.show_columns('slike')[2:-1]
-        self.logs = self.show_columns('logs')[1:-2]
-        print(self.logs)
+        self.logs = self.show_columns('logs')[:-2]
+        self.session = self.show_columns('session')[1:]
 
-    def connect(self):
-        self.connection = sqlite3.connect(self.database)
-        self.cursor = self.connection.cursor()
+        # DECORATING
+        #'''
+        self.execute_selectquery = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.execute_selectquery))
+        self.select = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.select))
+        self.join_select = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.join_select))
+        self.filter = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.filter))
 
-    def close_connection(self):
-        if self.connection:
-            self.cursor.close()
-            self.connection.close()
+        self.patient_data = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.patient_data))
+        self.execute_Update = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.execute_Update))
+        self.execute_Insert = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.execute_Insert))
+        self.execute_Delete = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.execute_Delete))
+        self.get_imageBlob = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.get_imageBlob))
+        #'''
 
     def GodMode_Password(self,event,parent,notebook:tb.Notebook):
         if not self.Admin:
@@ -60,10 +69,30 @@ class Database:
                 self.Admin = False
                 self.GodMode = False
 
+    def connect(self):
+        self.connection = sqlite3.connect(self.database)
+        self.cursor = self.connection.cursor()
+
+    def close_connection(self):
+        if self.connection:
+            self.cursor.close()
+            self.connection.close()
+
+    def show_columns(self,table):
+        try:
+            self.connect()
+            table = f"`{table}`" if " " in table else table
+            query = f"PRAGMA table_info({table})"
+
+            self.cursor.execute(query)
+            table = self.cursor.fetchall()
+            return [i[1] for i in table]
+        finally:
+            self.close_connection()
+
     def format_sql(self,query):
         formatted_query = sqlparse.format(query, reindent=True, keyword_case='upper')
         return formatted_query
-
 
     def creating_where_part(self,col,value,andor):
         if isinstance(value,tuple) and len(value)==2:
@@ -76,7 +105,20 @@ class Database:
         else:
             return f"{col}='{value}' {andor} "
 
-    @error_cathcer
+    #@method_efficency
+    #@error_catcher  
+    def execute_selectquery(self,query):
+        try:
+            self.connect()
+            self.LoggingQuery = self.format_sql(query)
+            self.cursor.execute(query)
+            view = self.cursor.fetchall()
+            return view
+        finally:
+            self.close_connection()
+
+    #@method_efficency
+    #@error_catcher
     def select(self, table, *args, **kwargs):
         try:
             self.connect()
@@ -100,20 +142,17 @@ class Database:
                 query += f" WHERE {where_pairs}"
             
             if 'FROM pacijenti' in query:
-                self.QUERY = query
+                self.PatientQuery = query
 
+            self.LoggingQuery = self.format_sql(query)
             self.cursor.execute(query)
             view = self.cursor.fetchall()
-            
-            query = self.format_sql(query)
-            print('----'*66)
-            print(query)
-            print('----'*66)
-            return view,query
+            return view
         finally:
             self.close_connection()
-            
-    @error_cathcer
+
+    #@method_efficency
+    #@error_catcher        
     def join_select(self, table, *args, **kwargs):
         try:
             self.connect()
@@ -170,32 +209,19 @@ class Database:
             query += f" GROUP BY {table}.id_pacijent"
 
             if 'FROM pacijenti' in query:
-                self.QUERY = query
+                self.PatientQuery = query
 
+            self.LoggingQuery = self.format_sql(query)
             self.cursor.execute(query)
             view = self.cursor.fetchall()
-
-            query = self.format_sql(query)
-            return view,query
+            return view
         finally:
             self.close_connection()
-            
-    
-    def show_columns(self,table):
-        try:
-            self.connect()
-            table = f"`{table}`" if " " in table else table
-            query = f"PRAGMA table_info({table})"
 
-            self.cursor.execute(query)
-            table = self.cursor.fetchall()
-            return [i[1] for i in table]
-        finally:
-            self.close_connection()
-            
-    @error_cathcer
+    #@method_efficency
+    #@error_catcher        
     def filter(self,columns):
-        if not self.QUERY or 'FROM pacijenti' not in self.QUERY:
+        if not self.PatientQuery or 'FROM pacijenti' not in self.PatientQuery:
             return
         try:
             self.connect()
@@ -206,24 +232,24 @@ class Database:
                 wherenull += f"pacijenti.{txt} {null} AND "
             wherenull = wherenull.rstrip(" AND ")
 
-            if 'WHERE' in self.QUERY:
-                fix = self.QUERY.split("WHERE")
+            if 'WHERE' in self.PatientQuery:
+                fix = self.PatientQuery.split("WHERE")
                 query = fix[0]+f"{wherenull} AND "+fix[1]
-            elif 'GROUP BY' in self.QUERY:
-                fix = self.QUERY.split("GROUP BY")
+            elif 'GROUP BY' in self.PatientQuery:
+                fix = self.PatientQuery.split("GROUP BY")
                 query = fix[0]+f"{wherenull} GROUP BY"+fix[1]
             else:
-                query = self.QUERY+f" {wherenull}"
+                query = self.PatientQuery+f" {wherenull}"
 
+            self.LoggingQuery = self.format_sql(query)
             self.cursor.execute(query)
             view = self.cursor.fetchall()
-
-            query = self.format_sql(query)
-            return view,query
+            return view
         finally:
             self.close_connection()
-            
 
+    #@method_efficency
+    #@error_catcher
     def patient_data(self,ID):
         try:
             self.connect()
@@ -248,6 +274,7 @@ class Database:
             query = f"SELECT {SELECT} FROM pacijenti {JOIN} " + \
                     f"WHERE pacijenti.id_pacijent = {ID} GROUP BY pacijenti.id_pacijent"
 
+            self.LoggingQuery = self.format_sql(query)
             self.cursor.execute(query)
             view = self.cursor.fetchall()
             column_names = [desc[0] for desc in self.cursor.description]
@@ -266,70 +293,79 @@ class Database:
             return DICTY
         finally:
             self.close_connection()
-            
 
-    def execute_selectquery(self,query):
-        try:
-            self.connect()
-            self.cursor.execute(query)
-            view = self.cursor.fetchall()
-            return view
-        finally:
-            self.close_connection()
-            
-
+    #@method_efficency
+    #@error_catcher        
     def execute_Update(self,table,id:tuple,**kwargs):
         try:
             self.connect()
             settin = ""
+            loggin = ""
             value = []
             for k,v in kwargs.items():
                 txt = k if " " not in k else f"`{k}`"
                 settin += f"{txt} = ?, "
+                loggin += f"{txt} = {v}, "
                 value.append(v)
             settin = settin.rstrip(", ")
+            loggin = loggin.rstrip(", ")
             value.append(id[1])
             value = tuple(value)
 
             table = table if " " not in table else f"`{table}`"
+            logginquery = f"UPDATE {table} SET {loggin} WHERE {id[0]} = {id[1]}"
             query = f"UPDATE {table} SET {settin} WHERE {id[0]} = ?"
+            self.LoggingQuery = self.format_sql(logginquery)
+
             self.cursor.execute(query,value)
             self.connection.commit()
         finally:
             self.close_connection()
     
+    #@method_efficency
+    #@error_catcher
     def execute_Insert(self,table,**kwargs):
         try:
             self.connect()
             counter = 0
             columns = ""
+            loggin = ""
             values = []
             for k,v in kwargs.items():
                 txt = k if " " not in k else f"`{k}`"
-                columns+= f"{txt}, "
+                columns += f"{txt}, "
+                loggin += f"{v}, "
                 values.append(v)
                 counter+=1
             columns = columns.rstrip(", ")
+            loggin = loggin.rstrip(", ")
             values = tuple(values)
 
             table = table if " " not in table else f"`{table}`"
             query = f"INSERT INTO {table} ({columns}) VALUES ({("?, "*counter).rstrip(", ")})"
-            print(query)
+            logginquery = f"INSERT INTO {table} ({columns}) VALUES ({loggin})"
+            self.LoggingQuery = self.format_sql(logginquery)
+
             self.cursor.execute(query,values)
             self.connection.commit()
         finally:
             self.close_connection()
     
+    #@method_efficency
+    #@error_catcher
     def execute_Delete(self,table,id):
         try:
             self.connect()
             table = table if " " not in table else f"`{table}`"
             query = f"DELETE FROM {table} WHERE {id[0]} = {id[1]}"
+            self.LoggingQuery = self.format_sql(query)
             self.cursor.execute(query)
             self.connection.commit()
         finally:
             self.close_connection()
 
+    #@method_efficency
+    #@error_catcher
     def get_imageBlob(self,id):
         try:
             self.connect()
@@ -349,42 +385,53 @@ class Database:
             self.close_connection()
 
 if __name__=='__main__':
-
+    from C_GoogleDrive import GoogleDrive_User
     #'''
     rhmh = Database('RHMH.db')
-    table = rhmh.execute_selectquery("SELECT * FROM logs")
-    for i in table:
-        if i[4]=='Success':
-            continue
-        print()
-        for j in i:
-            print(j)
+
+    print(rhmh.logs)
+    print(rhmh.session)
 
     '''
     rhmh.connect()
     query = """CREATE TABLE logs (
-                id_log INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
-                Time TEXT NOT NULL,
+                Time TEXT PRIMARY KEY NOT NULL,
+                User TEXT NOT NULL,
                 Query TEXT NOT NULL,
                 Error TEXT DEFAULT 'Success',
-                `Full Query` TEXT NOT NULL,
+                `Full Query` TEXT,
                 `Full Error` TEXT
             );"""
     
     
     rhmh.cursor.execute("DROP TABLE IF EXISTS logs")
     rhmh.cursor.execute(query)
+
+    #'''
+    '''
+    query2 = """CREATE TABLE session (
+                id_session INTEGER PRIMARY KEY AUTOINCREMENT,
+                User TEXT NOT NULL,
+                `Logged IN` TEXT NOT NULL,
+                `Logged OUT` TEXT NOT NULL,
+                Time TEXT NOT NULL,
+                Views INTEGER,
+                `Views efficency` INTEGER,
+                Modify INTEGER,
+                `Modify efficency` INTEGER,
+                Download INTEGER,
+                `Download efficency` INTEGER,
+                Upload INTEGER,
+                `Upload efficency` INTEGER
+            );"""
+    
+    rhmh.connect()
+    rhmh.cursor.execute("DROP TABLE IF EXISTS session")
+    rhmh.cursor.execute(query2)
     rhmh.close_connection()
 
     rhmh.Vaccum_DB()
     #'''
 
     #user = GoogleDrive_User()
-    #user.update_file(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
-
-
-
-
-
-
+    #user.upload_Update(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
