@@ -8,6 +8,8 @@ import traceback
 import io
 import os
 import pickle
+import google.auth
+from google.auth.transport.requests import AuthorizedSession, Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -30,10 +32,11 @@ from PIL import Image, ImageTk, ImageDraw
 import cv2
 import pillow_heif
 import subprocess
-#import easyocr
+import easyocr
 import numpy as np
 
 # G_Viewer
+import inspect
 from tkinter.font import nametofont
 import threading
 
@@ -125,7 +128,6 @@ default_form_buttons = [("ADD",None),
 alternative_form_buttons = [("ADD\nIMAGE",None),
                             ("UPDATE\nIMAGE",None),
                             ("DELETE\nIMAGE",'danger'),
-                            ("DOWNLOAD\nIMAGE",'info'),
                             ("FILL FROM\nIMAGE",'info')]
 
 MKB_Entry = {"MKB - šifra":("MKB",7),

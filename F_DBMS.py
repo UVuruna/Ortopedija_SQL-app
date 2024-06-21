@@ -1,7 +1,7 @@
 from A_Variables import *
-from B_Decorators import Singleton,method_efficency,error_catcher
-from C_GoogleDrive import GoogleDrive_User
-import E_SQLite as SQLLite
+from B_Decorators import Singleton
+from C_GoogleDrive import GoogleDrive
+from E_SQLite import Database
 from D_Media import Media
 
 class Buttons(Singleton):
@@ -9,11 +9,10 @@ class Buttons(Singleton):
     def __init__(self) -> None:
         if not self._initialized:
             Buttons._initialized=True
-            print(f"__INITIALIZING__ {Buttons}")
             self.ROOT:Tk = None
-            self.DB = SQLLite.Database('RHMH.db')
-            self.GD = GoogleDrive_User()
-            self.LOG = self.DB.LOG
+            self.DB = Database('RHMH.db')
+            self.GD = GoogleDrive()
+            self.LoggingQuery = self.DB.LoggingQuery
             self.UPDATE = False
             self.Buttons = dict()
             self.NoteBook:tb.Notebook = None
@@ -32,27 +31,6 @@ class Buttons(Singleton):
             self.Logs_FormVariables = dict()
             self.FilterOptions = dict()
             self.MKB_all = None
-
-            self.Clear_Form = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Clear_Form))
-            self.Add_Patient = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Add_Patient))
-            self.Update_Patient = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Update_Patient))
-            self.Delete_Patient = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Delete_Patient))
-            
-            self.add_MKB = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.add_MKB))
-            self.update_MKB = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.update_MKB))
-            self.delete_MKB = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.delete_MKB))
-            self.import_many_MKB = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.import_many_MKB))
-
-
-            self.add_ImageToCanvas = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.add_ImageToCanvas))
-            self.load_actual_media = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.load_actual_media))
-          
-            self.Add_Image = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Add_Image))
-            self.Update_Image = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Update_Image))
-            self.Delete_Image = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Delete_Image))
-            self.Show_Image = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Show_Image))
-            self.Download_Image = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Download_Image))
-            self.Fill_FromImage = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Fill_FromImage))
     
     def format_date(self,date_str,inp,out):
         return datetime.strptime(str(date_str),inp).strftime(out)
@@ -80,8 +58,6 @@ class Buttons(Singleton):
         elif isinstance(widget,tb.Label):
             widget.config(text="")
 
-    #@method_efficency
-    #@error_catcher
     def Clear_Form(self):
         self.PatientFocus_ID = None
         self.FormTitle[0].configure(bootstyle=self.FormTitle[1])
@@ -92,13 +68,15 @@ class Buttons(Singleton):
     #@method_efficency
     #@error_catcher
     def Add_Patient(self):
+        print("---"*66)
         self.UPDATE = True
         messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
         return
 
     #@method_efficency
     #@error_catcher
-    def add_MKB(self):
+    def Add_MKB(self):
+        print("---"*66)
         self.UPDATE = True
         messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
         return
@@ -142,8 +120,9 @@ class Buttons(Singleton):
     #@method_efficency
     #@error_catcher
     def Update_Patient(self):
+        print("---"*66)
         report = "You didn't make changes.\nUpdate unsuccessful !!!"
-        patient = self.DB.patient_data(self.PatientFocus_ID)
+        patient = self.DB.get_patient_data(self.PatientFocus_ID)
         update_Dict = {}
         insert_Dict = {}
         delete_Dict = {}
@@ -205,7 +184,8 @@ class Buttons(Singleton):
     
     #@method_efficency
     #@error_catcher
-    def update_MKB(self):
+    def Update_MKB(self):
+        print("---"*66)
         self.UPDATE = True
         messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
         return
@@ -213,27 +193,25 @@ class Buttons(Singleton):
     #@method_efficency
     #@error_catcher
     def Delete_Patient(self):
+        print("---"*66)
         self.UPDATE = True
         messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
         return
     
     #@method_efficency
     #@error_catcher
-    def delete_MKB(self):
+    def Delete_MKB(self):
+        print("---"*66)
         self.UPDATE = True
         messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
         return
     
-    #@method_efficency
-    #@error_catcher
     def import_many_MKB(self):
         self.UPDATE = True
-        print(self.GD.Session)
+        print(self.GD.UserSession)
 
-    #@method_efficency
-    #@error_catcher
-    def load_actual_media(self,Parent:Frame,ID,MediaType):
-        blob_data = self.GD.get_file_blob(ID)
+    def Show_Image_execute(self,Parent:Frame,ID,MediaType):
+        blob_data = self.GD.download_BLOB(ID)
         if "image" in MediaType:
             image = Media.get_image(blob_data)
             image, Width, Height = Media.resize_image(image, Parent.winfo_width(), Parent.winfo_height())
@@ -257,7 +235,8 @@ class Buttons(Singleton):
 
     #@method_efficency
     #@error_catcher
-    def add_ImageToCanvas(self,event=None,ID=None):
+    def Show_Image(self,event=None,ID=None):
+        print("---"*66)
         self.Slike_Viewer.delete("all")
         if ID is None:
             try:
@@ -282,48 +261,49 @@ class Buttons(Singleton):
         # AFTER LOADING.. png Actual Image
         self.ROOT.after(WAIT,
                         lambda Parent=parent_widget,ID=google_ID,MediaType=media_type: 
-                        self.load_actual_media(Parent,ID,MediaType))
+                        self.Show_Image_execute(Parent,ID,MediaType))
 
     #@method_efficency
     #@error_catcher
     def Add_Image(self):
+        print("---"*66)
         self.UPDATE = True
         pass
 
     #@method_efficency
     #@error_catcher
     def Update_Image(self):
+        print("---"*66)
         self.UPDATE = True
         pass   
 
     #@method_efficency
     #@error_catcher                                     
     def Delete_Image(self):
+        print("---"*66)
         self.UPDATE = True
         pass
 
-    #@method_efficency
-    #@error_catcher
-    def Show_Image(self,event):
+    def Show_Image_FullScreen(self,event):
+        print("---"*66)
         ID = self.Patient_FormVariables['Slike'].item(self.Patient_FormVariables['Slike'].focus())['values'][1].split("_")[0]
         self.NoteBook.select(2)
 
         self.ROOT.after(WAIT,self.Slike_HideTable.grid_remove)
         def execute():
-            self.add_ImageToCanvas(ID=ID)
+            self.Show_Image(ID=ID)
         self.ROOT.after(WAIT*2,execute)
 
     #@method_efficency
     #@error_catcher
-    def Download_Image(self):
-        print('slika loading...')
-
-    #@method_efficency
-    #@error_catcher
-    def Fill_FromImage(self):
+    def FillForm_FromImage(self):
+        print("---"*66)
         slika = self.Patient_FormVariables['Slike'].item(self.Patient_FormVariables['Slike'].focus())['values'][1].split("_")
         ID = slika[0]
         OPIS = slika[2]
+        print(ID)
+        print(OPIS)
+
         
         if 'Operaciona' in OPIS:
             image_blob = self.DB.get_imageBlob(ID)
@@ -361,11 +341,10 @@ class DBMS(Singleton):
     def __init__(self) -> None:
         if not self._initialized:
             DBMS._initialized=True
-            print(f"__INITIALIZING__ {DBMS}")
             self.buttons = Buttons()
-            self.GD = GoogleDrive_User()
+            self.GD = GoogleDrive()
             self.DB = self.buttons.DB
-            self.LOG = self.DB.LOG
+            self.LoggingQuery = self.DB.LoggingQuery
 
             self.PatientTable_IDs = list()
             self.Table_Pacijenti: tb.ttk.Treeview = None
@@ -380,7 +359,7 @@ class DBMS(Singleton):
 
             self.TableMKB_Columns = tuple(['ID']+self.DB.MKB)
             self.MKB_ColumnVars = {column: IntVar() for column in self.TableMKB_Columns}
-            self.buttons.MKB_all = [i[0] for i in self.DB.select("mkb10 2010",*("MKB - šifra",))]
+            self.buttons.MKB_all = [i[0] for i in self.DB.execute_select("mkb10 2010",*("MKB - šifra",))]
 
             self.TableSlike_Columns = tuple(['ID']+self.DB.slike)
             self.Slike_ColumnVars = {column: IntVar() for column in self.TableSlike_Columns}
@@ -395,26 +374,6 @@ class DBMS(Singleton):
             self.Search_Bar_ENTRIES = dict()
             self.Search_Bar_ON = 1
 
-             # DECORATING
-            self.selected_columns = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.selected_columns))
-            self.Options = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.Options))
-            self.tab_change = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.tab_change))
-            self.LoggingErrors = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.LoggingErrors))
-
-            self.showall_data = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.showall_data))
-            self.search_data = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.search_data))
-            self.filtered = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.filtered))
-
-            self.fill_MKBForm = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.fill_MKBForm))
-            self.fill_PatientForm = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.fill_PatientForm))
-            self.fill_LogsForm = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.fill_LogsForm))
-
-            self.fill_TablePacijenti = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.fill_TablePacijenti))
-            self.fill_TableSlike = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.fill_TableSlike))
-            self.fill_Tables_MKB_Logs = method_efficency(self.GD.Session)(error_catcher(self.LOG)(self.fill_Tables_MKB_Logs))
-
-    #@method_efficency
-    #@error_catcher
     def selected_columns(self,columns,table:tb.ttk.Treeview):
         Columns = [column for column, var in columns if var.get()==1]
 
@@ -441,10 +400,6 @@ class DBMS(Singleton):
         table['show'] = 'headings'
         return Columns[1:]
     
-
-
-    #@method_efficency
-    #@error_catcher
     def Options(self,n,event):
         search_option = self.Search_Bar_ENTRIES[f'search_option_{n}'].get()
         if search_option == 'Pol':
@@ -472,8 +427,6 @@ class DBMS(Singleton):
                 v.grid() if k==f'like_{n}' or ('search' in k and k[-1]==str(n)) \
                     else v.grid_remove() if k[-1]==str(n) else None
 
-    #@method_efficency
-    #@error_catcher
     def fill_TablePacijenti(self,table):
         for i, row in enumerate(table):
             formatted_row = [i+1] + [self.buttons.format_date(str(cell),"%Y-%m-%d","%d-%b-%y") if isinstance(cell, date) \
@@ -482,15 +435,11 @@ class DBMS(Singleton):
             self.Table_Pacijenti.insert('', END, values=formatted_row)
             self.PatientTable_IDs.append(row[0])
 
-    #@method_efficency
-    #@error_catcher
-    def fill_Tables_MKB_Logs(self,view,table):
+    def fill_Tables_Other(self,view,table):
         for i, row in enumerate(view):
             formatted_row = [i+1] + [cell for cell in row]
             table.insert('', END, values=formatted_row)
 
-    #@method_efficency
-    #@error_catcher
     def fill_TableSlike(self,table,condition):
         for i, row in enumerate(table):
             if row[0] in condition:
@@ -499,63 +448,43 @@ class DBMS(Singleton):
                                                 else cell for i,cell in enumerate(row[1:])]
                 self.buttons.Table_Slike.insert('', END, values=formatted_row)
 
-    #@method_efficency
-    #@error_catcher
-    def LoggingErrors(self,result,query_type):
-        raw_time = datetime.now()
-        Time = f'{raw_time.strftime("%Y-%m-%d %H:%M:%S")}.{raw_time.strftime("%f")[0]}'
-        user = self.GD.Session['User']
-        if isinstance(result,dict):
+    def LoggingData(self,result,query_type):
+        Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.\
+                    {datetime.now().strftime("%f")[0]}' # Ovo je da bi dobio 100 ms preciznost (00.0 s)
+        if result:
             def execute():
-                self.DB.execute_Insert('logs',**{'Time':Time, 'User':user, 
-                                                'Query':query_type, 'Error':result['Error'], 
-                                                'Full Error':result['Full Error'], 'Full Query':self.DB.LoggingQuery})
-            self.buttons.ROOT.after(WAIT, lambda: threading.Thread(target=execute).start())
-            return
-        else:
-            def execute():
-                self.DB.execute_Insert('logs',**{'User':user, 'Time':Time,
+                self.DB.execute_Insert('logs',**{'ID Time':Time, 'Email':self.GD.UserSession['User'],
                                                 'Query':query_type,'Full Query':self.DB.LoggingQuery})
             self.buttons.ROOT.after(WAIT, lambda: threading.Thread(target=execute).start())
-            return result
+        return result
 
     #@method_efficency
     #@error_catcher
     def showall_data(self):
+        print("---"*66)
         focus = self.buttons.NoteBook.index(self.buttons.NoteBook.select())
         if focus==0:
-            columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
             self.PatientTable_IDs.clear()
-            
-            view = self.LoggingErrors(self.DB.join_select("pacijenti",*(['id_pacijent']+columns)),"Pacijenti All SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent,
-                                                 title="Show All Pacijenti", message=self.DB.LoggingQuery)
-                if confirm != "Yes":
-                    return # OVO JE GLUPO JER JE QUERY VEC IZVRSEN OVO JE SAMO ZA TABELU ISPIS BLOKADA
-            
+            columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
+            view = self.LoggingData(self.DB.execute_join_select("pacijenti",*(['id_pacijent']+columns)),"Pacijenti All SELECT")
+          
             for item in self.Table_Pacijenti.get_children():
                 self.Table_Pacijenti.delete(item)
             if view and len(view)!=0:
                 self.fill_TablePacijenti(view)
+
         elif focus==1:
             columns = self.selected_columns(self.MKB_ColumnVars.items(),self.Table_MKB)
-
-            view = self.LoggingErrors(self.DB.select("mkb10 2010",*(columns)),"MKB All SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent ,title="Show All MKB10", message=self.DB.LoggingQuery)
-
+            view = self.LoggingData(self.DB.execute_select("mkb10 2010",*(columns)),"MKB All SELECT")
+   
             for item in self.Table_MKB.get_children():
                 self.Table_MKB.delete(item)
             if view and len(view)!=0:
-                self.fill_Tables_MKB_Logs(view,self.Table_MKB)
+                self.fill_Tables_Other(view,self.Table_MKB)
 
         elif focus==2:
             columns = self.selected_columns(self.Slike_ColumnVars.items(),self.buttons.Table_Slike)
-
-            view = self.LoggingErrors(self.DB.select("slike",*(['id_pacijent']+columns)),"Slike All SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent ,title="Show All Slike", message=self.DB.LoggingQuery)
+            view = self.LoggingData(self.DB.execute_select("slike",*(['id_pacijent']+columns)),"Slike All SELECT")
 
             for item in self.buttons.Table_Slike.get_children():
                 self.buttons.Table_Slike.delete(item)
@@ -564,21 +493,27 @@ class DBMS(Singleton):
 
         elif focus==3:
             columns = self.selected_columns(self.Logs_ColumnVars.items(),self.Table_Logs)
-
-            view = self.LoggingErrors(self.DB.select("logs",*(columns)),"Logs All SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent ,title="Show All Logs", message=self.DB.LoggingQuery)
-
+            view = self.LoggingData(self.DB.execute_select("logs",*(columns)),"Logs All SELECT")
+ 
             for item in self.Table_Logs.get_children():
                 self.Table_Logs.delete(item)
             if view and len(view)!=0:
-                self.fill_Tables_MKB_Logs(view,self.Table_Logs)
-        else:
-            return
+                self.fill_Tables_Other(view,self.Table_Logs)
+        
+        elif focus==4:
+            columns = self.selected_columns(self.Session_ColumnVars.items(),self.Table_Session)
+            view = self.LoggingData(self.DB.execute_select("session",*(columns)),"Session All SELECT")
+
+            for item in self.Table_Session.get_children():
+                self.Table_Session.delete(item)
+            if view and len(view)!=0:
+                self.fill_Tables_Other(view,self.Table_Session)
+
 
     #@method_efficency
     #@error_catcher
     def search_data(self):
+        print("---"*66)
         def searching_dict_create():
             searching = dict()
             for n in range(1,self.Search_Bar_ON+1):
@@ -623,16 +558,10 @@ class DBMS(Singleton):
 
         focus = self.buttons.NoteBook.index(self.buttons.NoteBook.select())
         if focus==0:
-            columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
             self.PatientTable_IDs.clear()
+            columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
             searching = searching_dict_create()
-
-            view = self.LoggingErrors(self.DB.join_select("pacijenti",*(['id_pacijent']+columns),**searching),"Pacijenti Search SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent,
-                                                 title="Search Pacijenti", message=self.DB.LoggingQuery)
-                if confirm != "Yes":
-                    return
+            view = self.LoggingData(self.DB.execute_join_select("pacijenti",*(['id_pacijent']+columns),**searching),"Pacijenti Search SELECT")
 
             for item in self.Table_Pacijenti.get_children():
                 self.Table_Pacijenti.delete(item)
@@ -642,30 +571,18 @@ class DBMS(Singleton):
         elif focus==1:
             columns = self.selected_columns(self.MKB_ColumnVars.items(),self.Table_MKB)
             searching = searching_dict_create()
-
-            view = self.LoggingErrors(self.DB.select("mkb10 2010",*(columns),**searching),"MKB Search SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent,
-                                                 title="Search MKB10", message=self.DB.LoggingQuery)
-                if confirm != "Yes":
-                    return
+            view = self.LoggingData(self.DB.execute_select("mkb10 2010",*(columns),**searching),"MKB Search SELECT")
 
             for item in self.Table_MKB.get_children():
                 self.Table_MKB.delete(item)
             if view and len(view)!=0:
-                self.fill_Tables_MKB_Logs(view,self.Table_MKB)
+                self.fill_Tables_Other(view,self.Table_MKB)
 
         elif focus==2:
             columns = self.selected_columns(self.Slike_ColumnVars.items(),self.buttons.Table_Slike)
             searching = searching_dict_create()
-
-            view = self.LoggingErrors(self.DB.select("slike",*(['id_pacijent']+columns),**searching),"Slike Search SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent,
-                                                 title="Search Slike", message=self.DB.LoggingQuery)
-                if confirm != "Yes":
-                    return
-
+            view = self.LoggingData(self.DB.execute_select("slike",*(['id_pacijent']+columns),**searching),"Slike Search SELECT")
+  
             for item in self.buttons.Table_Slike.get_children():
                 self.buttons.Table_Slike.delete(item)
             if view and len(view)!=0:
@@ -674,22 +591,27 @@ class DBMS(Singleton):
         elif focus==3:
             columns = self.selected_columns(self.Logs_ColumnVars.items(),self.Table_Logs)
             searching = searching_dict_create()
-
-            view = self.LoggingErrors(self.DB.select("logs",*(['id_log']+columns),**searching),"Logs Search SELECT")
-            if self.DB.Admin is True:
-                confirm = Messagebox.yesnocancel(parent=self.buttons.MessageBoxParent,
-                                                 title="Search Logs", message=self.DB.LoggingQuery)
-                if confirm != "Yes":
-                    return
-
+            view = self.LoggingData(self.DB.execute_select("logs",*(columns),**searching),"Logs Search SELECT")
+ 
             for item in self.Table_Logs.get_children():
                 self.Table_Logs.delete(item)
             if view and len(view)!=0:
-                self.fill_Tables_MKB_Logs(view,self.Table_Logs)
+                self.fill_Tables_Other(view,self.Table_Logs)
+
+        elif focus==4:
+            columns = self.selected_columns(self.Session_ColumnVars.items(),self.Table_Session)
+            searching = searching_dict_create()
+            view = self.LoggingData(self.DB.execute_select("session",*(columns),**searching),"Session Search SELECT")
+
+            for item in self.Table_Session.get_children():
+                self.Table_Session.delete(item)
+            if view and len(view)!=0:
+                self.fill_Tables_Other(view,self.Table_Session)
 
     #@method_efficency
     #@error_catcher
-    def filtered(self,columns):
+    def filter_data(self,columns):
+        print("---"*66)
         where = {}
         self.PatientTable_IDs.clear()
         for k,v in self.buttons.FilterOptions.items():
@@ -697,7 +619,7 @@ class DBMS(Singleton):
                 where[k]=v[1].get()
         
 
-        view = self.LoggingErrors(self.DB.filter(where),"FILTER SELECT")
+        view = self.LoggingData(self.DB.execute_filter_select(where),"FILTER SELECT")
         if self.DB.Admin is True:
             Messagebox.ok(parent=self.buttons.MessageBoxParent ,title="Pacijenti Filter SELECT", message=self.DB.LoggingQuery)
 
@@ -714,19 +636,25 @@ class DBMS(Singleton):
     #@method_efficency
     #@error_catcher
     def fill_MKBForm(self,event):
-        row = self.Table_MKB.item(self.Table_MKB.focus())['values'][1:]
-        headings = [column for column, var in self.MKB_ColumnVars.items() if var.get()==1][1:]
-        for col,val in zip(headings,row):
-            self.buttons.MKB_FormVariables[col].set(val)
+        print("---"*66)
+        try:
+            row = self.Table_MKB.item(self.Table_MKB.focus())['values'][1:]
+            headings = [column for column, var in self.MKB_ColumnVars.items() if var.get()==1][1:]
+            for col,val in zip(headings,row):
+                self.buttons.MKB_FormVariables[col].set(val)
+        except IndexError:
+            print("Error")
+            return
     
     #@method_efficency
     #@error_catcher
     def fill_PatientForm(self,event):
+        print("---"*66)
         self.buttons.Clear_Form()
         try:
             # DAJ RED GDE JE FOKUS i daj prvi VALUE i oduzmi 1 i pogleda ko je na toj poziciji u ID listi
             self.buttons.PatientFocus_ID = self.PatientTable_IDs[self.Table_Pacijenti.item(self.Table_Pacijenti.focus())['values'][0]-1] 
-            patient = self.DB.patient_data(self.buttons.PatientFocus_ID)
+            patient = self.DB.get_patient_data(self.buttons.PatientFocus_ID)
         except IndexError:
             return
         for col,val in patient.items():
@@ -746,10 +674,12 @@ class DBMS(Singleton):
     #@method_efficency
     #@error_catcher
     def fill_LogsForm(self,event):
+        print("---"*66)
         try:
             # DAJ RED GDE JE FOKUS i daj prvi VALUE i oduzmi 1 i pogleda ko je na toj poziciji u ID listi
             time = self.Table_Logs.item(self.Table_Logs.focus())['values'][1]
-            query = f'SELECT `Full Query`,`Full Error` from logs WHERE Time = "{time}"'
+            query = f'SELECT `Full Query`,`Full Error` from logs WHERE `ID Time` = "{time}"'
+            print(self.DB.execute_selectquery(query))
             FullQuery,FullError = self.DB.execute_selectquery(query)[0]
             self.buttons.set_widget_value(self.buttons.Logs_FormVariables['Full Query'],FullQuery)
             self.buttons.set_widget_value(self.buttons.Logs_FormVariables['Full Error'],FullError)

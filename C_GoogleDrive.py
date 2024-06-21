@@ -1,12 +1,11 @@
 from A_Variables import *
-from B_Decorators import Singleton,method_efficency
+from B_Decorators import Singleton,method_efficency,error_catcher
 
-class GoogleDrive_User(Singleton):
+class GoogleDrive(Singleton):
     _initialized = False
     def __init__(self) -> None:
         if not self._initialized: # moze self ovde
-            GoogleDrive_User._initialized = True
-            print(f"__INITIALIZING__ {GoogleDrive_User}")
+            GoogleDrive._initialized = True
             self.SCOPES = [ 'https://www.googleapis.com/auth/drive',
                             'https://www.googleapis.com/auth/drive.file',
                             'https://www.googleapis.com/auth/admin.directory.user',
@@ -14,12 +13,9 @@ class GoogleDrive_User(Singleton):
                             'openid']
             self.creds = self.authenticate_google_drive()
             self.drive_service = build('drive', 'v3', credentials=self.creds)
-            GoogleDrive_User._initialized = True
+            GoogleDrive._initialized = True
 
-            # DECORATING
-            self.Session = {'User':self.get_user_email()}
-            self.LOG = dict()
-
+            self.UserSession = {'User':self.get_UserEmail()}
 
     def authenticate_google_drive(self):
         creds = None
@@ -41,58 +37,54 @@ class GoogleDrive_User(Singleton):
                 pickle.dump(creds, token)
         return creds
 
-    def download_file(self, file_id, destination):
+    def download_File(self, file_id, destination):
         request = self.drive_service.files().get_media(fileId=file_id)
         with open(destination, 'wb') as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False
             while not done:
                 status, done = downloader.next_chunk()
-                print("Download %d%%." % int(status.progress() * 100))
-
-    def upload_Update(self, file_id, file_path, mime_type):
-        media = MediaFileUpload(file_path, mimetype=mime_type)
-        self.drive_service.files().update(fileId=file_id, media_body=media).execute()
-        print(f'File ID: {file_id}')
-        return file_id 
-
-    def get_file_blob(self, file_id):
+    
+    def download_BLOB(self, file_id):
         request = self.drive_service.files().get_media(fileId=file_id)
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
         done = False
         while not done:
             status, done = downloader.next_chunk()
-            print("Download %d%%." % int(status.progress() * 100))
         fh.seek(0)
         return fh.getvalue()
 
-    def upload_file_fromPC(self, file_name, GoogleDrive_folder, file_path, mime_type):
+
+    def upload_UpdateFile(self, file_id, file_path, mime_type):
+        media = MediaFileUpload(file_path, mimetype=mime_type)
+        self.drive_service.files().update(fileId=file_id, media_body=media).execute()    
+
+    def upload_NewFile_asFile(self, file_name, GoogleDrive_folder, file_path, mime_type):
         file_metadata = {'name': file_name, 'parents': GoogleDrive_folder}
         media = MediaFileUpload(file_path, mimetype=mime_type)
         file = self.drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        print('File ID: %s' % file.get('id'))
         return file.get('id')
 
-    def upload_blob_file(self, file_name, GoogleDrive_folder, blob_data, mime_type):
+    def upload_NewFile_asBLOB(self, file_name, GoogleDrive_folder, blob_data, mime_type):
         file_metadata = {'name': file_name, 'parents': GoogleDrive_folder}
         media = MediaIoBaseUpload(io.BytesIO(blob_data), mimetype=mime_type)
         file = self.drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        print('File ID: %s' % file.get('id'))
         return file.get('id')
     
-    def get_file_info(self, file_id):
-        file = self.drive_service.files().get(fileId=file_id, fields='name, size, mimeType').execute()
-        return file
 
-    def get_user_email(self):
+    def get_UserEmail(self):
         oauth2_service = build('oauth2', 'v2', credentials=self.creds)
         user_info = oauth2_service.userinfo().get().execute()
         return user_info.get('email')
+    
+    def get_FileInfo(self, file_id):
+        file = self.drive_service.files().get(fileId=file_id, fields='name, size, mimeType').execute()
+        return file
 
 
 if __name__ == '__main__':
 
-    user = GoogleDrive_User()
-    user_email = user.get_user_email()
+    user = GoogleDrive()
+    user_email = user.get_UserEmail()
     print(user_email)

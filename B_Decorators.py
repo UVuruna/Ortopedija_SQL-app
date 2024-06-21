@@ -1,4 +1,3 @@
-import A_Variables as var
 from A_Variables import *
 
 def spam_stopper(button:ctk.CTkButton,root:Tk):
@@ -12,7 +11,7 @@ def spam_stopper(button:ctk.CTkButton,root:Tk):
         return wrapper
     return decorator
 
-def method_efficency(session:dict):
+def method_efficency(session:dict=None):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -21,9 +20,7 @@ def method_efficency(session:dict):
             end = time.time_ns()
             efficency = (end-start)/10**6
             print(f"Execution time {func.__name__}: {efficency:,.2f} ms")
-            if not session:
-                print(efficency)
-            else:
+            if session:
                 if func.__name__ not in session:
                     session[func.__name__] = efficency
                 else:
@@ -32,14 +29,26 @@ def method_efficency(session:dict):
         return wrapper
     return decorator
 
-def error_catcher(log:dict):
+def error_catcher(CLASS=None):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                return {"Error":str(e),"Full Error":traceback.format_exc()}
+                if CLASS:
+                    Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.\
+                        {datetime.now().strftime("%f")[0]}' # Ovo je da bi dobio 100 ms preciznost (00.0 s)
+                    fullerror = traceback.format_exc()
+                    def execute():
+                        CLASS.execute_Insert('logs',**{'ID Time':Time, 'Email':CLASS.GD.UserSession['User'],
+                                                'Query':func.__name__,'Full Query':CLASS.LoggingQuery,
+                                                "Error":str(e), "Full Error": fullerror})
+                    threading.Thread(target=execute).start()
+                else:
+                    print(str(e))
+                    print(traceback.format_exc())
+                return
         return wrapper
     return decorator
 

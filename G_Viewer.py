@@ -1,7 +1,8 @@
 from A_Variables import *
 from B_Decorators import method_efficency,spam_stopper,error_catcher
-from C_GoogleDrive import GoogleDrive_User
-import F_DBMS as SQLite
+from C_GoogleDrive import GoogleDrive
+from E_SQLite import Database
+from F_DBMS import DBMS,Buttons
 
 class TitleFrame:
     def __init__(self,root) -> None: 
@@ -37,17 +38,16 @@ class FormFrame:
         self.form_true.set(True)
         self.root = root
 
-        self.DBMS = SQLite.DBMS()
-        self.buttons = SQLite.Buttons()
+        self.DBMS = DBMS()
+        self.buttons = Buttons()
         FormFrame.DefaultForm_button_fun = [self.buttons.Add_Patient,
                                             self.buttons.Update_Patient,
                                             self.buttons.Delete_Patient,
                                             self.buttons.Clear_Form]
-        FormFrame.AlternativeForm_button_fun = [self.buttons.Download_Image,
-                                                self.buttons.Fill_FromImage,
-                                                self.buttons.Add_Image,
+        FormFrame.AlternativeForm_button_fun = [self.buttons.Add_Image,
                                                 self.buttons.Update_Image,
-                                                self.buttons.Delete_Image,]
+                                                self.buttons.Delete_Image,
+                                                self.buttons.FillForm_FromImage]
 
         self.valid_dg = root.register(self.buttons.validate_dg)
             # PARENT FRAME for FORMS
@@ -66,7 +66,7 @@ class FormFrame:
         self.AlternativeForm.grid(row=1, column=0, columnspan=4, sticky="nsew")
         self.AlternativeForm.grid_remove()
         self.FormPatient_Create(self.AlternativeForm,alternative_form_entry,form_groups['Alternative'],-2)
-        self.FormPatient_Buttons(self.AlternativeForm,[2],alternative_form_buttons,'alternative')
+        self.FormPatient_Buttons(self.AlternativeForm,[3],alternative_form_buttons,'alternative')
  
     def label_ImageLoad(self,images_list):
         return_images = []
@@ -101,7 +101,7 @@ class FormFrame:
 
         table = tb.ttk.Treeview(frame, columns=["ID", "Slika"], xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set, height=height, show='tree')
         table.grid(row=0, column=0, pady=0, sticky="nsew")
-        table.bind("<Double-1>",self.buttons.Show_Image)
+        table.bind("<Double-1>",self.buttons.Show_Image_FullScreen)
         
         scroll_x.grid(row=1, column=0, sticky="ew")
         scroll_y.grid(row=0, column=1, sticky="ns")
@@ -207,12 +207,12 @@ class FormFrame:
 
 class WindowFrame:
     def __init__(self, root:Tk,) -> None:
-        self.DBMS = SQLite.DBMS()
-        self.buttons = SQLite.Buttons()
+        self.DBMS = DBMS()
+        self.buttons = Buttons()
         self.buttons.FilterOptions = {"Datum Operacije":"Operisan" , "Datum Otpusta":"Otpušten"}
-        WindowFrame.MKB_buttons = [self.buttons.add_MKB,
-                                   self.buttons.update_MKB,
-                                   self.buttons.delete_MKB,
+        WindowFrame.MKB_buttons = [self.buttons.Add_MKB,
+                                   self.buttons.Update_MKB,
+                                   self.buttons.Delete_MKB,
                                    self.buttons.import_many_MKB]
 
         # PARENT FRAME for RIGHT PANEL
@@ -268,9 +268,9 @@ class WindowFrame:
                 
         self.buttons.Table_Slike = self.NotebookTab_Create("Slike",table=F_SIZE*50, expand=(1,5),
                                 extra=(self.Slike_SideFrame,{'row':1,'column':5,'rowspan':2,'columnspan':1,}))
-        self.buttons.Table_Slike.bind("<ButtonRelease-1>", self.buttons.add_ImageToCanvas)
-        self.buttons.Table_Slike.bind("<KeyRelease-Down>", self.buttons.add_ImageToCanvas)
-        self.buttons.Table_Slike.bind("<KeyRelease-Up>", self.buttons.add_ImageToCanvas)
+        self.buttons.Table_Slike.bind("<ButtonRelease-1>", self.buttons.Show_Image)
+        self.buttons.Table_Slike.bind("<KeyRelease-Down>", self.buttons.Show_Image)
+        self.buttons.Table_Slike.bind("<KeyRelease-Up>", self.buttons.Show_Image)
         for val in self.DBMS.Slike_ColumnVars.values():
             val.set(1)
         self.DBMS.selected_columns(self.DBMS.Slike_ColumnVars.items(),self.buttons.Table_Slike)
@@ -305,7 +305,7 @@ class WindowFrame:
         self.Roundbutton_Create(filterFrame)    
         butf = ctk.CTkButton(filterFrame, text="FILTER\nBOTH", width=form_butt_width, height=form_butt_height, corner_radius=10,
                         font=font_label(), text_color=ThemeColors['dark'], fg_color=ThemeColors['info'], text_color_disabled=ThemeColors['dark'],
-                            command=lambda column=["Datum Operacije","Datum Otpusta"]: self.DBMS.filtered(column))
+                            command=lambda column=["Datum Operacije","Datum Otpusta"]: self.DBMS.filter_data(column))
         butf.grid(row=0, column=2, rowspan=max_searchby,
                 padx=(form_padding_button[0][0],33), pady=form_padding_button[1], sticky='se')
         self.buttons.Buttons['Filter Both'] = butf
@@ -527,42 +527,89 @@ class WindowFrame:
 
             butt = ctk.CTkButton(parent_frame, text="FILTER", width=form_butt_width, height=form_butt_height//2, corner_radius=10,
                             font=font_label(), text_color=ThemeColors['dark'], fg_color=ThemeColors['info'], text_color_disabled=ThemeColors['dark'],
-                                command=lambda column=col: self.DBMS.filtered(column))
+                                command=lambda column=col: self.DBMS.filter_data(column))
             butt.grid(row=1, column=i, padx=form_padding_button[0], pady=(0,3))
             self.buttons.Buttons[f"Filter {txt}"] = butt
 
 class GUI:
-    @method_efficency(None)
     def __init__(self, root:Tk):
-        self.GoogleDrive = GoogleDrive_User()
-        self.GoogleDrive.download_file(RHMH_DB['id'],"RHMH.db")
+        self.GD = GoogleDrive()
+        self.GD.download_File(RHMH_DB['id'],"RHMH.db")
+        self.DBMS = DBMS()
+        self.BUTT = self.DBMS.buttons
+        self.BUTT.ROOT = root
+        self.DB = self.DBMS.DB
 
-        dbms = SQLite.DBMS()
-        self.update = dbms.buttons
+        # DECORATING
+        self.GoogleDrive_Decorating()
+        self.Database_Decorating()
+        self.Buttons_Decorating()
+        self.DBMS_Decorating()
+        
         self.root = root
         self.root.title(app_name)
-        self.root.geometry("1666x927+0+0")
+        self.root.geometry("1666x927")
         self.root.iconbitmap("C:/Users/vurun/Desktop/App/Slytherin-Emblem_icon.ico")
-
-        # 3 PARTS = TITLE,FORM,WINDOW == WINDOW takes left space
         self.root.grid_rowconfigure(1, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
 
         self.Title = TitleFrame(self.root)
         self.Form = FormFrame(self.root)
         self.Window = WindowFrame(self.root)
+  
+        
+        
 
-        self.menu = self.RootMenu_Create()
-        self.root.bind("\u004D\u0055\u0056",lambda event,root=self.root,notebook=dbms.buttons.NoteBook: 
-                                                    dbms.DB.GodMode_Password(event,root,notebook))
+        
+        self.root.bind("\u004D\u0055\u0056",lambda event,root=self.root,notebook=self.DBMS.buttons.NoteBook: 
+                                                    self.DBMS.DB.GodMode_Password(event,root,notebook))
         self.root.protocol("WM_DELETE_WINDOW",self.EXIT)
-        dbms.buttons.ROOT = self.root
-        self.root.update()
         self.Buttons_SpamStopper()
+        self.menu = self.RootMenu_Create()
+        
    
+    def GoogleDrive_Decorating(self):
+        for name, method in inspect.getmembers(GoogleDrive, predicate=inspect.isfunction):
+            print(f"Decorating {name}")
+            decorated_method = method_efficency(self.GD.UserSession)(
+                error_catcher(self.DB)(method)
+                )
+            setattr(self.GD, name, decorated_method.__get__(self.GD, type(self.GD)))
+
+    def Database_Decorating(self):
+        for name, method in inspect.getmembers(Database, predicate=inspect.isfunction):
+            if "execute" in name or "get" in name:
+                print(f"Decorating {name}")
+                decorated_method = method_efficency(self.GD.UserSession)(
+                    error_catcher(self.DB)(method)
+                    )
+                setattr(self.DB, name, decorated_method.__get__(self.DB, type(self.DB)))
+    
+    def Buttons_Decorating(self):
+        for name, method in inspect.getmembers(Buttons, predicate=inspect.isfunction):
+            for i in ["Add","Update","Delete","Show_Image","Fill"]:
+                if i in name:
+                    print(f"Decorating {name}")
+                    decorated_method = method_efficency(self.GD.UserSession)(
+                    error_catcher(self.DB)(method)
+                    )
+                    setattr(self.BUTT, name, decorated_method.__get__(self.BUTT, type(self.BUTT)))
+                    break
+
+    def DBMS_Decorating(self):
+        for name, method in inspect.getmembers(DBMS, predicate=inspect.isfunction):
+            for i in ["data","tab","Form"]:
+                if i in name:
+                    print(f"Decorating {name}")
+                    decorated_method = method_efficency(self.GD.UserSession)(
+                        error_catcher(self.DB)(method)
+                    )
+                    setattr(self.DBMS, name, decorated_method.__get__(self.DBMS, type(self.DBMS)))
+                    break
+
     def Buttons_SpamStopper(self):
         counter=0
-        for button in self.update.Buttons.values():
+        for button in self.BUTT.Buttons.values():
             counter+=1
             last_cmd = button.cget('command')
             button.configure(command=spam_stopper(button,self.root)(last_cmd))
@@ -571,7 +618,7 @@ class GUI:
     def EXIT(self):
         response = Messagebox.show_question("Do you want to save the changes before exiting?", "Close", buttons=["Exit:secondary","Save:success"])
         if response == "Update":
-            if self.update.UPDATE:
+            if self.BUTT.UPDATE:
                 threading.Thread(target=self.uploading_to_GoogleDrive).start()
             root.destroy()
         if response == "Exit":
@@ -579,7 +626,7 @@ class GUI:
     
     def uploading_to_GoogleDrive(self):
         print("Uploading to Google Drive...")
-        self.GoogleDrive.upload_Update(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
+        self.GD.upload_UpdateFile(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
         print("Upload finished")
 
     def show_form_frame(self):
@@ -608,7 +655,7 @@ class GUI:
         self.title_true = BooleanVar()
         self.title_true.set(True)
         m.add_checkbutton(label="Show Title", variable=self.title_true, command=self.show_title_frame)
-        m.add_checkbutton(label="Show Frame", variable=self.Form.form_true, command=self.show_form_frame)
+        m.add_checkbutton(label="Show Form", variable=self.Form.form_true, command=self.show_form_frame)
         m.add_separator() 
         m.add_command(label ="Copy") 
         m.add_command(label ="Paste") 
@@ -650,8 +697,16 @@ entry_font = nametofont('TkTextFont')
 default_font.configure(size=def_font[1])
 entry_font.configure(size=def_font[1])
 
-GD = GoogleDrive_User()
-GUI = method_efficency(GD.Session)(error_catcher(GD.LOG)(GUI))
+GUI = method_efficency()(error_catcher()(GUI))
+TitleFrame = method_efficency()(error_catcher()(TitleFrame))
+FormFrame = method_efficency()(error_catcher()(FormFrame))
+WindowFrame = method_efficency()(error_catcher()(WindowFrame))
+
+DBMS = method_efficency()(error_catcher()(DBMS))
+Buttons = method_efficency()(error_catcher()(Buttons))
+Database = method_efficency()(error_catcher()(Database))
+GoogleDrive = method_efficency()(error_catcher()(GoogleDrive))
+
 app = GUI(root)
 
 root.mainloop()
