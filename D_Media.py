@@ -2,143 +2,133 @@ from A_Variables import *
 pillow_heif.register_heif_opener()
 
 class Media:
+    ReaderSetting = easyocr.Reader(['rs_latin','en'])
     @staticmethod
     def is_date(date_string):
         try:
-            # Pokušaj parsiranja stringa u format 'dd.mm.yyyy.'
-            datetime.strptime(str(date_string), '%d.%m.%Y.')
-            return True
+            date_string = date_string.replace(" ","")
+            date_string = date_string if date_string[-1].isdigit() else date_string[:-1]
+            date = datetime.strptime(str(date_string), '%d.%m.%Y').strftime("%d-%b-%y")
+            return date
         except ValueError:
             return False
+        
+    @staticmethod
+    def mkb_find(detection,nextline):
+        try:
+            mkb = detection.split()[3]
+            return mkb,False
+        except IndexError:
+            mkb = nextline.split()[0]
+            return mkb,True
 
     @staticmethod
-    def Image_Reader(img_blob,PRINT=False):
-        image = np.array(Image.open(io.BytesIO(img_blob)))
+    def mkb_fix(mkb):
+        if mkb[0].isdigit():
+            fix='X'
+            if mkb[0] in ['5','8']:
+                fix = 'S'
+            elif mkb[0]=='2':
+                fix = 'Z'
+            elif mkb[0]=='0':
+                fix = 'D'
+            mkb = fix + mkb[1:]
+        mkb = mkb[0]+mkb[1:].replace("O","0")
+        mkb.replace('?','1')
+        mkb = mkb.replace(",","")
+        mkb = mkb.replace(".","")
+        if len(mkb)==4:
+            mkb = mkb[:3]+"."+mkb[-1]
+        return mkb
 
-        reader = easyocr.Reader(['hr', 'sl', 'bs', 'en'])
-        result = reader.readtext(image, detail=0)
+    @staticmethod
+    def Image_Reader(img_blob):
+        image = np.array(Image.open(io.BytesIO(img_blob)))
+        result = Media.ReaderSetting.readtext(image, detail=0, mag_ratio=1.15)
 
         def extend_variable(i, variable, searchlist, image_text):
             j = i + 1
-            while j < len(image_text) and not any(image_text[j].startswith(prefix[:4]) for prefix in searchlist):
+            while j < len(image_text) and not any((image_text[j]).startswith(prefix) for prefix in searchlist):
                 variable += (" " + image_text[j])
                 j += 1
             return variable
 
         # Initialize variables
-        Ime = None
-        Prezime = None
-        Godiste = None
-        Dg_Glavna = []
-        Dg_Sporedna = []
-        Dg_Latinski = None
-        Datum_Operacije = None
-        staff = ["Operator", "Asistent 1", "Asistent 2", "Asistent 3",
-                "Anesteziolog", "Anestetičar", "Instrumentarka",
-                "Gostujući specijalizant"]
-        staff_dict = {}
+        OUTPUT = {  "Datum Operacije": None,
+                    "Dg Glavna": list(),
+                    "Dg Sporedna": list(),
+                    "Dg Latinski": None,
+                    "Operator": list(),
+                    "Asistenti": list(),
+                    "Anesteziolog": list(),
+                    "Anestetičar": list(),
+                    "Instrumentarka": list(),
+                    "Gostujući Specijalizant":list()   }
+        DoctorsImage_dict = {"Operator":("Operator",["Operator"]),
+                             "Asist":("Asistenti",["Asistent 1","Asistent 2","Asistent 3","Asistent"]),
+                            "Anestezio":("Anesteziolog",["Anesteziolog"]),
+                            "Anestet":("Anestetičar",["Anestetičar","Anesteticar"]),
+                            "Instru":("Instrumentarka",["Instrumentarka","Instrumentar"]),
+                            "Gostuju": ("Gostujući Specijalizant",["Gostujući specijalizant","Gostujuci specijalizant"])}
+        prosao_datum = False
 
         for i, detection in enumerate(result):
-            if Media.is_date(detection.strip()):
-                Datum_Operacije = detection.strip()
-            elif detection.title().startswith('Pac'):
-                j = i+1
-                imeprezime = result[j].split(' ')
-                Ime = imeprezime[0].capitalize()
-                if len(imeprezime) > 1:
-                    if len(imeprezime)==2:
-                        Prezime = imeprezime[1].capitalize()
-                    elif len(imeprezime)==3:
-                        Prezime = imeprezime[2].capitalize()
+            if prosao_datum is False and detection in ['PACIJENT','OPERACIONA LISTA','godište']:
+                prosao_datum = True
+            if  prosao_datum is False or not OUTPUT["Datum Operacije"]:
+                date = Media.is_date(detection)
+                if date:
+                    OUTPUT['Datum Operacije'] = date
+                    prosao_datum = True
+            if "Glavna operativna dijagnoza" in detection:
+                mkb,nextline = Media.mkb_find(detection,result[i+1])
+                if nextline is False:
+                    MKB = Media.mkb_fix(mkb)
                 else:
-                    j+=1
-                    newrow = result[j].split(' ')
-                    if len(newrow)==1:
-                        Prezime = newrow[0].capitalize()
-                    elif len(newrow)==2:
-                        Prezime = newrow[1].capitalize()
-                j+=1
-                if result[j][0].isdigit():
+                    MKB = Media.mkb_fix("L"+mkb)
+                OUTPUT['Dg Glavna'].append(MKB)
+                if not OUTPUT['Dg Latinski']:
                     try:
-                        Godiste = int(result[j])
-                    except:
-                        Godiste = result[j].replace('.','')
-
-            elif "Glavna operativna dijagnoza" in detection:
-                mkb = detection.split(' ')[3]
-                Dg_Glavna.append("S"+mkb[1:] if mkb[0] in ['5','8'] \
-                                else "Z"+mkb[1:] if mkb[0]=='2' else mkb)
-                if not Dg_Latinski:
-                    Dg_Latinski = detection.split(mkb)[1].strip()
-                    Dg_Latinski = extend_variable(i, Dg_Latinski, ["Glavna", "Sporedna", "Operacije"], result)
+                        if nextline is False:
+                            Dg_Latinski = detection.split(mkb)[1].strip()
+                        else:
+                            Dg_Latinski = result[i+1].split(mkb)[1].strip()
+                        Dg_Latinski = extend_variable(i, Dg_Latinski, ["Glavn", "Spored", "Operac"], result)
+                        OUTPUT['Dg Latinski'] = Dg_Latinski.replace("|","l")
+                    except IndexError:
+                        continue
 
             elif "Sporedna operativna dijagnoza" in detection:
-                mkb = detection.split(' ')[3]
-                Dg_Sporedna.append("S"+mkb[1:] if mkb[0] in ['5','8'] \
-                                else "Z"+mkb[1:] if mkb[0]=='2' else mkb)
-            else:
-                for st in staff:
-                    if detection.capitalize().startswith(st):
-                        doctors = detection.replace(f'{st}:', '') \
-                            if ':' in detection \
-                                else detection.replace(f'{st}', '')
-                        if 'lekar na specijalizaciji' in doctors:
-                            doctors = doctors.replace('lekar na specijalizaciji','')
-                        if '-' in doctors:
-                            doctors = doctors.replace('-','')
-                        if "," in doctors:
-                            doctors = [i.strip() for i in doctors.split(",")]
-                            staff_dict[st] = doctors
-                        elif ";" in doctors:
-                            doctors = [i.strip() for i in doctors.split(";")]
-                            staff_dict[st] = doctors
-                        elif ":" in doctors:
-                            doctors = [i.strip() for i in doctors.split(":")]
-                            staff_dict[st] = doctors
-                        else:
-                            if st not in staff_dict:
-                                staff_dict[st] = []
-
-                            if st!="Gostujući specijalizant":
-                                doctors = extend_variable(i, doctors, staff+["Premedikacija"], result).strip()
-                                staff_dict[st] = [doctors]
-                            else:
-                                extra = extend_variable(i, doctors, staff+["Premedikacija"], result).replace(doctors,"")
-                                staff_dict["Gostujući specijalizanti"] = [doctors.strip(),extra.strip()] if extra else [doctors.strip()]
-                                
-            if PRINT:                
-                print(i, ': ', detection)
-
-        if PRINT:
-            print('---' * 20)
-            print("Datum_Operacije: ", Datum_Operacije)
-            print("Ime: ", Ime)
-            print("Prezime: ", Prezime)
-            print("Godiste: ", Godiste)
-            print("Dg_Glavna: ", Dg_Glavna)
-            print("Dg_Sporedna: ", Dg_Sporedna)
-            print("Dg_Latinski: ", Dg_Latinski)
-            for k, v in staff_dict.items():
-                if v[0]:
-                    print(f"{k}: {v}")
-        STAFF = {}
-        for k,v in staff_dict.items():
-            if v[0]:
-                if "Asistent" in k:
-                    if "Asistent" not in STAFF:
-                        STAFF["Asistenti"] = []
-                        STAFF["Asistenti"].append(v[0])
+                mkb,nextline = Media.mkb_find(detection,result[i+1])
+                if nextline is False:
+                    MKB = Media.mkb_fix(mkb)
                 else:
-                    STAFF[k] = v
-
-        STAFF.update({"Ime": Ime,
-                "Prezime": Prezime,
-                "Godište": Godiste,
-                "Datum Operacije": Datum_Operacije,
-                "Dg Glavna": Dg_Glavna,
-                "Dg Sporedna": Dg_Sporedna,
-                "Dg Latinski": Dg_Latinski})
-        return STAFF
+                    MKB = Media.mkb_fix("L"+mkb)
+                OUTPUT['Dg Sporedna'].append(MKB)
+                
+            else: # DOCTORS
+                for prefix,(doctorType,fixlist) in DoctorsImage_dict.items():
+                    if detection.capitalize().startswith(prefix):
+                        doctors: str
+                        doctors = extend_variable(i, detection, list(DoctorsImage_dict.keys())+["Preme","Anest"], result)
+                        for fix in fixlist+['-','_',',','.',':',';']:
+                            doctors = doctors.replace(fix,"")
+                        doctors = doctors.replace('ll',"Il")
+                        doctors = " ".join(doctors.split())
+                        if prefix == 'Gostuju':
+                            DOCTORS = []
+                            doctors = doctors.split()
+                            for i,doc in enumerate(doctors):
+                                if doc in ['Dr','dr']:
+                                    DOCTORS.append(" ".join(doctors[i:i+3]))
+                            OUTPUT[doctorType] += DOCTORS
+                        else:
+                            if doctors:
+                                if doctorType == "Asistenti":
+                                    OUTPUT[doctorType].append(doctors)
+                                elif not OUTPUT[doctorType]:
+                                    OUTPUT[doctorType] = [doctors]
+        return OUTPUT
 
     @staticmethod
     def get_image(image_blob_data): # Format za Canvas
@@ -207,3 +197,132 @@ class Media:
             os.startfile(os.path.abspath(image_file))
         else:
             subprocess.call(('xdg-open', os.path.abspath(image_file)))
+
+if __name__=='__main__':
+    def Image_Reader_default(img_blob):
+        print("READER 2")
+        image = np.array(Image.open(io.BytesIO(img_blob)))
+
+        reader = easyocr.Reader(['rs_latin','en'])
+        result = reader.readtext(image, detail=0)
+
+        def extend_variable(i, variable, searchlist, image_text):
+            j = i + 1
+            while j < len(image_text) and not any((image_text[j]).startswith(prefix) for prefix in searchlist):
+                variable += (" " + image_text[j])
+                j += 1
+            return variable
+
+        # Initialize variables
+        OUTPUT = {  "Datum Operacije": None,
+                    "Dg Glavna": list(),
+                    "Dg Sporedna": list(),
+                    "Dg Latinski": None,
+                    "Operator": list(),
+                    "Asistenti": list(),
+                    "Anesteziolog": list(),
+                    "Anestetičar": list(),
+                    "Instrumentarka": list(),
+                    "Gostujući Specijalizant":list()   }
+        
+        DoctorsImage_dict = {"Operator":("Operator",["Operator"]),
+                             "Asist":("Asistenti",["Asistent 1","Asistent 2","Asistent 3","Asistent"]),
+                            "Anestezio":("Anesteziolog",["Anesteziolog"]),
+                            "Anestet":("Anestetičar",["Anestetičar","Anesteticar"]),
+                            "Instru":("Instrumentarka",["Instrumentarka"]),
+                            "Gostuju": ("Gostujući Specijalizant",["Gostujući specijalizant","Gostujuci specijalizant"])}
+
+        prosao_datum=False
+        for i, detection in enumerate(result):
+            print(i,": ",detection)
+            if prosao_datum is False and detection in ['PACIJENT','OPERACIONA LISTA','godište']:
+                prosao_datum = True
+            if not OUTPUT["Datum Operacije"] or prosao_datum is False:
+                date = Media.is_date(detection)
+                if date:
+                    OUTPUT['Datum Operacije'] = date
+                    prosao_datum = True
+
+            if "Glavna operativna dijagnoza" in detection:
+                try:
+                    mkb = detection.split(' ')[3]
+                except IndexError:
+                    continue
+                MKB = Media.mkb_fix(mkb)
+                OUTPUT['Dg Glavna'].append(MKB)
+
+                if not OUTPUT['Dg Latinski']:
+                    try:
+                        Dg_Latinski = detection.split(mkb)[1].strip()
+                        Dg_Latinski = extend_variable(i, Dg_Latinski, ["Glavn", "Spored", "Operac"], result)
+                        OUTPUT['Dg Latinski'] = Dg_Latinski
+                    except IndexError:
+                        print(detection)
+
+            elif "Sporedna operativna dijagnoza" in detection:
+                try:
+                    mkb = detection.split(' ')[3]
+                except IndexError:
+                    continue
+                MKB = Media.mkb_fix(mkb)
+                OUTPUT['Dg Sporedna'].append(MKB)
+                
+            else: # DOCTORS
+                for prefix,(doctorType,fixlist) in DoctorsImage_dict.items():
+                    if detection.capitalize().startswith(prefix):
+                        for fix in fixlist+['-',',','.',':',';']:
+                            detection = detection.replace(fix,"")
+                        doctors = extend_variable(i, detection, list(DoctorsImage_dict.keys())+["Preme","Anestez"], result)
+                        doctors = doctors.strip()
+                        if prefix == 'Gostuju':
+                            DOCTORS = []
+                            doctors = doctors.split(' ')
+                            for i,doc in enumerate(doctors):
+                                if doc in ['Dr','dr']:
+                                    DOCTORS.append(" ".join(doctors[i:i+3]))
+                            if DOCTORS:
+                                for doc in DOCTORS:
+                                    doc:str
+                                    doc = doc.replace("-","")
+                                    doc.strip()
+                                    
+                                OUTPUT[doctorType] += DOCTORS
+                        else:
+                            if doctors:
+                                OUTPUT[doctorType] += [doctors]
+        return OUTPUT
+    
+    print("Start")
+    from E_SQLite import Database
+    from C_GoogleDrive import GoogleDrive
+    db = Database('RHMH.db')
+    gd = GoogleDrive()
+    GoogleID = db.execute_selectquery(f"SELECT image_data FROM slike WHERE id_slike = 1509")[0][0]
+    image_blob = gd.download_BLOB(GoogleID)
+
+    start = time.time()
+    reader_def = Image_Reader_default(image_blob)
+    Reader_default = f"{time.time()-start:,.2f} s"
+
+    start1 = time.time()
+    reader = Media.Image_Reader(image_blob)
+    Reader_new =  f"{time.time()-start1:,.2f} s"
+
+    FALSE = []
+    for i,(k,v) in enumerate(reader.items()):
+        print(i," -"*66)
+        print(f"new-{k}: {v}")
+        print(f"default-{k}: {reader_def[k]}")
+        if v!=reader_def[k]:
+            FALSE.append(i)
+    print('---'*33)    
+    print(FALSE)
+
+    print(f"READER New {Reader_new}")
+    print(f"READER Default {Reader_default}")
+    #for b in reader:
+        #print(f"{b}")
+
+    #for b in reader2:
+        #print(f"{b}")
+

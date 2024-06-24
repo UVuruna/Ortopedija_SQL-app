@@ -1,8 +1,10 @@
 from A_Variables import *
 from B_Decorators import method_efficency,spam_stopper,error_catcher
 from C_GoogleDrive import GoogleDrive
+from D_Media import Media
 from E_SQLite import Database
 from F_DBMS import DBMS,Buttons
+
 
 class TitleFrame:
     def __init__(self,root) -> None: 
@@ -17,11 +19,17 @@ class TitleFrame:
         self.Title_Frame.bind('<Configure>',lambda event , canvas=self.Title_Frame , img_txt = self.title_txt,
                             image=self.title_img , text_posX=1/img_posX, text_posY=1/img_posY:
                             self.adjust_title_window(event , canvas , img_txt , image , text_posX , text_posY))
+        self.reconect_button = ctk.CTkButton(root, text="Reconect", width=form_butt_width,height=form_butt_height//2, corner_radius=12, font=font_label(),
+                                 fg_color=ThemeColors['warning'], text_color=ThemeColors['dark'], command=self.reconecting)
         
+
+    def reconecting(self):
+        print("RECONECTING...")
+
     def remove_title_frame(self,event):
         self.Title_Frame.grid_forget()
 
-    def adjust_title_window(self,event,canvas,img_txt,image,text_posX,text_posY):
+    def adjust_title_window(self,event,canvas:Canvas,img_txt,image,text_posX,text_posY):
         new_width = event.width
         new_height = event.height
         resized_image = image.resize((new_width, new_height), Image.LANCZOS)
@@ -31,6 +39,7 @@ class TitleFrame:
         canvas.delete("all")
         canvas.create_image(0, 0, anchor=NW, image=tk_image)
         canvas.create_text(new_width//text_posX, new_height//text_posY, anchor='nw', text=img_txt, font=font_title, fill=ThemeColors[titleTxtColor])
+        self.Title_Frame.create_window(new_width//1.06, 10, anchor='n', window=self.reconect_button)
 
 class FormFrame:
     def __init__(self, root:Tk) -> None:
@@ -53,6 +62,7 @@ class FormFrame:
             # PARENT FRAME for FORMS
         self.Form_Frame = Frame(root, bd=bd_main_frame, relief=RIDGE)
         self.Form_Frame.grid(row=1, column=0, padx=shape_padding[0], pady=shape_padding[1], sticky="nsew")
+        self.Form_Frame.grid_rowconfigure(1,weight=1)
 
         self.buttons.FormTitle = (self.Form_TopLabel(form_name),labelColor)
 
@@ -65,7 +75,7 @@ class FormFrame:
         self.AlternativeForm = Frame(self.Form_Frame)
         self.AlternativeForm.grid(row=1, column=0, columnspan=4, sticky="nsew")
         self.AlternativeForm.grid_remove()
-        self.FormPatient_Create(self.AlternativeForm,alternative_form_entry,form_groups['Alternative'],-2)
+        self.FormPatient_Create(self.AlternativeForm,alternative_form_entry,form_groups['Alternative'],-8)
         self.FormPatient_Buttons(self.AlternativeForm,[3],alternative_form_buttons,'alternative')
  
     def label_ImageLoad(self,images_list):
@@ -95,13 +105,22 @@ class FormFrame:
         lbl.grid(row=0, column=1, columnspan=2, padx=title_padding[0], pady=title_padding[1], sticky="nswe")
         return lbl
 
-    def Images_MiniTable_Create(self,frame:Frame,height):
+    def Images_MiniTable_Create(self,frame:Frame):
         scroll_x = tb.Scrollbar(frame, orient=HORIZONTAL, bootstyle=f"{bootstyle_table}-round")
         scroll_y = tb.Scrollbar(frame, orient=VERTICAL, bootstyle=f"{bootstyle_table}-round")
 
-        table = tb.ttk.Treeview(frame, columns=["ID", "Slika"], xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set, height=height, show='tree')
+        table = tb.ttk.Treeview(frame, columns=["ID", "Slika"], xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set, show='tree')
         table.grid(row=0, column=0, pady=0, sticky="nsew")
         table.bind("<Double-1>",self.buttons.Show_Image_FullScreen)
+        def fill_Opis(event):
+            opis = event.widget.item(event.widget.focus()) \
+                    ['values'][1] \
+                        .split('_')[2] \
+                            .split('.')[0]
+            self.buttons.Patient_FormVariables['Opis'].set(opis)
+        table.bind("<ButtonRelease-1>",fill_Opis)
+        table.bind("<KeyRelease-Down>",fill_Opis)
+        table.bind("<KeyRelease-Up>",fill_Opis)
         
         scroll_x.grid(row=1, column=0, sticky="ew")
         scroll_y.grid(row=0, column=1, sticky="ns")
@@ -120,7 +139,7 @@ class FormFrame:
 
         return table
 
-    def FormPatient_Create(self, parent, form_dict, group, pad_k=0):
+    def FormPatient_Create(self, parent:Frame, form_dict, group, pad_k=0):
         n=1
         group_names = []
         group_childs = []
@@ -154,7 +173,8 @@ class FormFrame:
                     ent = tb.Entry(parent, width=data[2], textvariable=self.buttons.Patient_FormVariables[txt], font=font_entry,
                                    validate="focus", validatecommand=(self.valid_dg, '%P'))
             elif data[1] == 'Text':
-                ent = tb.Text(parent, width=data[2], height=3, font=font_entry)
+                height = 3 if txt=="Dg Latinski" else 2
+                ent = tb.Text(parent, width=data[2], height=height, font=font_entry)
                 self.buttons.Patient_FormVariables[txt] = ent
             elif data[1] == 'DateEntry':
                 ent = widgets.DateEntry(parent, width=data[2], borderwidth=2)
@@ -166,9 +186,10 @@ class FormFrame:
                 self.buttons.PatientInfo = ent
                 ent = None
             elif data[1] == 'Slike':
-                ent = Frame(parent, height=160)
+                ent = Frame(parent)
                 ent.grid(row=i+n, column=0, columnspan=4,  padx=(12,0), pady=form_padding_entry[1], sticky="nswe")
-                sliketable = self.Images_MiniTable_Create(ent,6)
+                parent.grid_rowconfigure(i+n, weight=1)
+                sliketable = self.Images_MiniTable_Create(ent)
                 self.buttons.Patient_FormVariables[txt] = sliketable
                 ent = None
             if ent:
@@ -176,7 +197,7 @@ class FormFrame:
 
     def FormPatient_Buttons(self,parent,split,buttons,form):
         buttons_cmd = FormFrame.DefaultForm_button_fun if form=='default' else FormFrame.AlternativeForm_button_fun if form=='alternative' else None
-        Frame(parent).grid(row=16, columnspan=4, pady=12) ## prazan frame za odvajanje (12*2 == 24)
+        Frame(parent).grid(row=16, columnspan=4, pady=12) ## prazan frame za odvajanje (6*2 == 12)
         for i,((but,btype),cmd) in enumerate(zip(buttons,buttons_cmd)):
             if i in split or i==0:
                 Buttons_Frame = Frame(parent)
@@ -184,11 +205,12 @@ class FormFrame:
                 Buttons_Frame.bind("<Enter>",lambda event: Buttons_Frame.focus_force())
 
             butt = ctk.CTkButton(Buttons_Frame, text=but, width=form_butt_width,height=form_butt_height, corner_radius=12, font=font_label(),
-                                 command=cmd)
+                                 fg_color=ThemeColors['primary'], text_color=ThemeColors['dark'], command=cmd)
             butt.grid(row=0, column=i, padx=form_padding_button[0], pady=form_padding_button[1])
             self.buttons.Buttons[but] = butt
             if btype:
                 butt.configure(fg_color=ThemeColors[btype], text_color=ThemeColors[dangerButtTxtColor])
+        Frame(parent).grid(row=24, columnspan=4, pady=12) ## prazan frame za odvajanje (6*2 == 12)    
 
     def remove_form_frame(self,event):
         self.Form_Frame.grid_forget()
@@ -312,13 +334,13 @@ class WindowFrame:
 
             # BUTTONS for SEARCH and SHOWALL
         buts = ctk.CTkButton(self.DBMS.Search_Bar, text="SEARCH", width=form_butt_width, height=form_butt_height, corner_radius=10,
-                        font=font_label(), command=self.DBMS.search_data)
+                        font=font_label(), fg_color=ThemeColors['primary'],  text_color=ThemeColors['dark'], command=self.DBMS.search_data)
         buts.grid(row=0, column=searchButtonROW+3, rowspan=max_searchby,
                 padx=form_padding_button[0], pady=form_padding_button[1], sticky='se')
         self.buttons.Buttons['Search'] = buts
 
         buta = ctk.CTkButton(self.DBMS.Search_Bar, text="SHOW ALL", width=form_butt_width, height=form_butt_height, corner_radius=10,
-                        font=font_label(), command=self.DBMS.showall_data)
+                        font=font_label(), fg_color=ThemeColors['primary'], text_color=ThemeColors['dark'], command=self.DBMS.showall_data)
         buta.grid(row=0, column=searchButtonROW+4, rowspan=max_searchby,
                 padx=form_padding_button[0], pady=form_padding_button[1], sticky='se')
         self.buttons.Buttons['Show All'] = buta
@@ -450,7 +472,7 @@ class WindowFrame:
                 frame.grid_rowconfigure(0,weight=1)
                 for j,(butt,btype) in enumerate(values):
                     button = ctk.CTkButton(frame, text=butt, width=form_butt_width, height=form_butt_height, corner_radius=10,
-                        font=font_label(), command=WindowFrame.MKB_buttons[j])
+                        font=font_label(), fg_color=ThemeColors['primary'], text_color=ThemeColors['dark'], command=WindowFrame.MKB_buttons[j])
                     button.grid(row=0, column=j,padx=form_padding_button[0], pady=form_padding_button[1], sticky='nse')
                     self.buttons.Buttons[butt] = button
                     if btype:
@@ -532,42 +554,6 @@ class WindowFrame:
             self.buttons.Buttons[f"Filter {txt}"] = butt
 
 class GUI:
-    def __init__(self, root:Tk):
-        self.GD = GoogleDrive()
-        self.GD.download_File(RHMH_DB['id'],"RHMH.db")
-        self.DBMS = DBMS()
-        self.BUTT = self.DBMS.buttons
-        self.BUTT.ROOT = root
-        self.DB = self.DBMS.DB
-
-        # DECORATING
-        self.GoogleDrive_Decorating()
-        self.Database_Decorating()
-        self.Buttons_Decorating()
-        self.DBMS_Decorating()
-        
-        self.root = root
-        self.root.title(app_name)
-        self.root.geometry("1666x927")
-        self.root.iconbitmap("C:/Users/vurun/Desktop/App/Slytherin-Emblem_icon.ico")
-        self.root.grid_rowconfigure(1, weight=1)
-        self.root.grid_columnconfigure(1, weight=1)
-
-        self.Title = TitleFrame(self.root)
-        self.Form = FormFrame(self.root)
-        self.Window = WindowFrame(self.root)
-  
-        
-        
-
-        
-        self.root.bind("\u004D\u0055\u0056",lambda event,root=self.root,notebook=self.DBMS.buttons.NoteBook: 
-                                                    self.DBMS.DB.GodMode_Password(event,root,notebook))
-        self.root.protocol("WM_DELETE_WINDOW",self.EXIT)
-        self.Buttons_SpamStopper()
-        self.menu = self.RootMenu_Create()
-        
-   
     def GoogleDrive_Decorating(self):
         for name, method in inspect.getmembers(GoogleDrive, predicate=inspect.isfunction):
             print(f"Decorating {name}")
@@ -576,57 +562,79 @@ class GUI:
                 )
             setattr(self.GD, name, decorated_method.__get__(self.GD, type(self.GD)))
 
-    def Database_Decorating(self):
-        for name, method in inspect.getmembers(Database, predicate=inspect.isfunction):
-            if "execute" in name or "get" in name:
-                print(f"Decorating {name}")
+    def Media_Decorating(self):
+        for name, method in inspect.getmembers(Media, predicate=inspect.isfunction):
+            if name=='Image_Reader':
+                print(f"Efficency {name}")
                 decorated_method = method_efficency(self.GD.UserSession)(
                     error_catcher(self.DB)(method)
                     )
+                setattr(Media, name, decorated_method)
+            else:
+                print(f"Error {name}")
+                decorated_method = error_catcher(self.DB)(method)
+                setattr(Media, name, decorated_method)
+
+    def Database_Decorating(self):
+        for name, method in inspect.getmembers(Database, predicate=inspect.isfunction):
+            if "execute" in name or "get" in name:
+                print(f"Efficency {name}")
+                decorated_method = method_efficency(self.GD.UserSession)(
+                    error_catcher(self.DB)(method)
+                    ) 
                 setattr(self.DB, name, decorated_method.__get__(self.DB, type(self.DB)))
+            else:
+                print(f"Error {name}")
+                decorated_method = error_catcher(self.DB)(method)
+                setattr(self.DB, name, decorated_method.__get__(self.DB, type(self.DB)))
+
     
     def Buttons_Decorating(self):
         for name, method in inspect.getmembers(Buttons, predicate=inspect.isfunction):
             for i in ["Add","Update","Delete","Show_Image","Fill"]:
                 if i in name:
-                    print(f"Decorating {name}")
+                    print(f"Efficency {name}")
                     decorated_method = method_efficency(self.GD.UserSession)(
                     error_catcher(self.DB)(method)
                     )
                     setattr(self.BUTT, name, decorated_method.__get__(self.BUTT, type(self.BUTT)))
                     break
+            else:
+                print(f"Error {name}")
+                decorated_method = error_catcher(self.DB)(method)
+                setattr(self.BUTT, name, decorated_method.__get__(self.BUTT, type(self.BUTT)))
 
     def DBMS_Decorating(self):
         for name, method in inspect.getmembers(DBMS, predicate=inspect.isfunction):
             for i in ["data","tab","Form"]:
                 if i in name:
-                    print(f"Decorating {name}")
+                    print(f"Efficency {name}")
                     decorated_method = method_efficency(self.GD.UserSession)(
                         error_catcher(self.DB)(method)
                     )
                     setattr(self.DBMS, name, decorated_method.__get__(self.DBMS, type(self.DBMS)))
                     break
+            else:
+                print(f"Error {name}")
+                decorated_method = error_catcher(self.DB)(method)
+                setattr(self.DBMS, name, decorated_method.__get__(self.DBMS, type(self.DBMS)))
 
     def Buttons_SpamStopper(self):
-        counter=0
         for button in self.BUTT.Buttons.values():
-            counter+=1
             last_cmd = button.cget('command')
             button.configure(command=spam_stopper(button,self.root)(last_cmd))
-        print(counter)
 
     def EXIT(self):
         response = Messagebox.show_question("Do you want to save the changes before exiting?", "Close", buttons=["Exit:secondary","Save:success"])
-        if response == "Update":
-            if self.BUTT.UPDATE:
-                threading.Thread(target=self.uploading_to_GoogleDrive).start()
-            root.destroy()
+        if response == "Save":
+            threading.Thread(target=self.uploading_to_GoogleDrive).start()
+            self.root.destroy()
         if response == "Exit":
-            root.destroy()
+            self.root.destroy()
     
     def uploading_to_GoogleDrive(self):
         print("Uploading to Google Drive...")
-        self.GD.upload_UpdateFile(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
+        #self.GD.upload_UpdateFile(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
         print("Upload finished")
 
     def show_form_frame(self):
@@ -651,7 +659,7 @@ class GUI:
                 m.tk_popup(event.x_root, event.y_root) 
             finally: 
                 m.grab_release() 
-        m = Menu(root, tearoff = 0) 
+        m = Menu(self.root, tearoff = 0) 
         self.title_true = BooleanVar()
         self.title_true.set(True)
         m.add_checkbutton(label="Show Title", variable=self.title_true, command=self.show_title_frame)
@@ -663,29 +671,62 @@ class GUI:
         m.add_command(label ="Rename")
         self.root.bind("<Button-3>", do_popup)
         return m
+    
+    def lose_focus(self,event):
+        event.widget.focus()
+
+    def __init__(self, root:Tk):
+        self.GD = GoogleDrive()
+        self.GD.download_File(RHMH_DB['id'],"RHMH.db")
+        self.DBMS = DBMS()
+        self.BUTT = self.DBMS.buttons
+        self.BUTT.ROOT = root
+        self.DB = self.DBMS.DB
+
+        # DECORATING
+        self.GoogleDrive_Decorating()
+        self.Media_Decorating()
+        self.Database_Decorating()
+        self.Buttons_Decorating()
+        self.DBMS_Decorating()
         
+        self.root = root
+        self.root.title(app_name)
+        self.root.geometry(f"{WIDTH}x{HEIGHT}")
+        self.root.iconbitmap("C:/Users/vurun/Desktop/App/Slytherin-Emblem_icon.ico")
+        self.root.grid_rowconfigure(1, weight=1)
+        self.root.grid_columnconfigure(1, weight=1)
 
+        self.Title = TitleFrame(self.root)
+        self.Form = FormFrame(self.root)
+        self.Window = WindowFrame(self.root)
+        
+        self.root.bind("\u004D\u0055\u0056",lambda event,root=self.root,notebook=self.DBMS.buttons.NoteBook: 
+                                                    self.DBMS.DB.GodMode_Password(event,root,notebook))
+        self.root.protocol("WM_DELETE_WINDOW",self.EXIT)
+        self.Buttons_SpamStopper()
+        self.menu = self.RootMenu_Create()
+        self.root.bind("<Button-1>",self.lose_focus)
 
-#'''
+    
 root = Tk()
 
-# POSTAVLJA TEMU cele aplikacije
 style = tb.Style(theme=THEME)
 
 # CUVA u dicty BOJE iz TEME
-from ttkbootstrap.style import Colors
 ThemeColors = {}
 for color_label in Colors.label_iter():
     color = style.colors.get(color_label)
     ThemeColors[color_label] = color
 print(ThemeColors)
 ThemeColors_Dict = ThemeColors
+
 # MENJA boju na TABOVIMA od NOTEBOOK-a
 style.configure("TNotebook.Tab")
-style.map("TNotebook.Tab", background=[("selected", ThemeColors['primary']),
+style.map("TNotebook.Tab", background=[("selected", ThemeColors['selectbg']),
                                        ("!selected", ThemeColors['active'])])
-style.map("TNotebook.Tab", foreground=[("selected", ThemeColors['dark'])])
-
+style.map("TNotebook.Tab", foreground=[("selected", ThemeColors['selectfg']),
+                                       ("!selected", ThemeColors[theme_fg])])
 
 style.configure("Treeview", rowheight=int(F_SIZE*2.2))
 style.map("Treeview.Heading", background=[('active',ThemeColors["primary"])])
@@ -697,17 +738,14 @@ entry_font = nametofont('TkTextFont')
 default_font.configure(size=def_font[1])
 entry_font.configure(size=def_font[1])
 
-GUI = method_efficency()(error_catcher()(GUI))
-TitleFrame = method_efficency()(error_catcher()(TitleFrame))
-FormFrame = method_efficency()(error_catcher()(FormFrame))
-WindowFrame = method_efficency()(error_catcher()(WindowFrame))
-
-DBMS = method_efficency()(error_catcher()(DBMS))
-Buttons = method_efficency()(error_catcher()(Buttons))
-Database = method_efficency()(error_catcher()(Database))
-GoogleDrive = method_efficency()(error_catcher()(GoogleDrive))
+GUI = error_catcher()(GUI)
+TitleFrame = error_catcher()(TitleFrame)
+FormFrame = error_catcher()(FormFrame)
+WindowFrame = error_catcher()(WindowFrame)
+DBMS = error_catcher()(DBMS)
+Buttons = error_catcher()(Buttons)
+Database = error_catcher()(Database)
+GoogleDrive = error_catcher()(GoogleDrive)
 
 app = GUI(root)
-
 root.mainloop()
-#'''

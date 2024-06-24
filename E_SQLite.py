@@ -44,7 +44,7 @@ class Database:
             dialog = PasswordDialog(parent, "GodMode Unlocking...")
             if dialog.password=='666':
                 self.Admin = True
-                notebook.execute_select(3)
+                notebook.select(3)
             elif dialog.password==password():
                 self.Admin = True
                 self.GodMode = True
@@ -109,25 +109,28 @@ class Database:
     #@error_catcher
     def execute_select(self, table, *args, **kwargs):
         with self.lock:
+            print("KWARGS")
             try:
                 self.connect()
                 table = f"`{table}`" if " " in table else table       
                 select_values = ",".join(f"`{a}`" if ' ' in a else a for a in args)
                 where_pairs = ""
-                    
+  
                 for k,v in kwargs.items():
-                    col = f"`{k}`" if ' ' in k else k
-                    if isinstance(v,set):
-                        where_pairs += "( "
-                        for val in v:
-                            where_pairs += self.creating_where_part(col,val,"OR")
-                        where_pairs = where_pairs.rstrip(' OR ') + " ) AND "
-                    else:
-                        where_pairs += self.creating_where_part(col,v,"AND")
+                    if v:
+                        col = f"`{k}`" if ' ' in k else k
+                        if isinstance(v,set):
+                            where_pairs += "( "
+                            for val in v:
+                                where_pairs += self.creating_where_part(col,val,"OR")
+                            where_pairs = where_pairs.rstrip(' OR ') + " ) AND "
+                        else:
+                            where_pairs += self.creating_where_part(col,v,"AND")
                 where_pairs = where_pairs.rstrip(" AND ")
                 
                 query = f"SELECT {select_values} FROM {table}"
                 if where_pairs:
+                    print(where_pairs)
                     query += f" WHERE {where_pairs}"
                 
                 if 'FROM pacijenti' in query:
@@ -221,7 +224,7 @@ class Database:
                     null = "IS NOT NULL" if v else "IS NULL"
                     txt = f'`{k}`' if ' ' in k else k
                     wherenull += f"pacijenti.{txt} {null} AND "
-                #wherenull = wherenull.rstrip(" AND ")
+                wherenull = wherenull.rstrip(" AND ")
 
                 if 'WHERE' in self.PatientQuery:
                     fix = self.PatientQuery.split("WHERE")
@@ -351,6 +354,7 @@ class Database:
         with self.lock:
             try:
                 self.connect()
+                self.cursor.execute("PRAGMA foreign_keys=ON")
                 table = table if " " not in table else f"`{table}`"
                 query = f"DELETE FROM {table} WHERE {id[0]} = {id[1]}"
 
@@ -386,17 +390,49 @@ class Database:
                 self.close_connection()
 
 if __name__=='__main__':
-    from C_GoogleDrive import GoogleDrive
+    #from C_GoogleDrive import GoogleDrive
     #'''
     rhmh = Database('RHMH.db')
 
-    print(rhmh.logs)
-    print(rhmh.session)
+    table = rhmh.execute_selectquery("SELECT * from pacijenti")
+    for i,v in enumerate(table):
+        if i==10:
+            break
+        print(v)
 
-    table = rhmh.execute_selectquery("SELECT * from logs")
-    for i in table:
-        for j in i:
-            print(j)
+    table = rhmh.execute_selectquery("SELECT * from `pacijenti dijagnoza`")
+    for i,v in enumerate(table):
+        if i==10:
+            break
+        print(v)
+
+    table = rhmh.execute_selectquery("SELECT * from slike")
+    for i,v in enumerate(table):
+        if i==10:
+            break
+        print(v)
+
+
+    '''
+    rhmh.connect()
+    query = """CREATE TABLE `operaciona lista` (
+                `id_pacijent` INT PRIMARY KEY NOT NULL,
+                Operator TEXT,
+                Asistenti TEXT,
+                Anesteziolog TEXT,
+                Anestetičar TEXT,
+                Instrumentarka TEXT,
+                `Gostujući Specijalizant` TEXT
+            );"""
+    
+    
+    rhmh.cursor.execute("DROP TABLE IF EXISTS `operaciona lista`")
+    rhmh.cursor.execute(query)
+    
+    rhmh.close_connection()
+    rhmh.Vaccum_DB()
+
+    #'''
 
     '''
     rhmh.connect()

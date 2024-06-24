@@ -21,10 +21,13 @@ def method_efficency(session:dict=None):
             efficency = (end-start)/10**6
             print(f"Execution time {func.__name__}: {efficency:,.2f} ms")
             if session:
-                if func.__name__ not in session:
-                    session[func.__name__] = efficency
-                else:
-                    session[func.__name__] += efficency
+                try:
+                    key = session[func.__name__]
+                    key['count'] += 1
+                    key['time'] += efficency
+                except KeyError:
+                    print("Uslo")
+                    session[func.__name__] = {'count':1 , 'time':efficency}
             return result
         return wrapper
     return decorator
@@ -37,12 +40,12 @@ def error_catcher(CLASS=None):
                 return func(*args, **kwargs)
             except Exception as e:
                 if CLASS:
-                    Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.\
-                        {datetime.now().strftime("%f")[0]}' # Ovo je da bi dobio 100 ms preciznost (00.0 s)
+                    # Ovo je da bi dobio 100 ms preciznost (00.0 s)
+                    Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.{datetime.now().strftime("%f")[0]}' 
                     fullerror = traceback.format_exc()
                     def execute():
                         CLASS.execute_Insert('logs',**{'ID Time':Time, 'Email':CLASS.GD.UserSession['User'],
-                                                'Query':func.__name__,'Full Query':CLASS.LoggingQuery,
+                                                'Query':func.__name__, 'Full Query':CLASS.LoggingQuery,
                                                 "Error":str(e), "Full Error": fullerror})
                     threading.Thread(target=execute).start()
                 else:

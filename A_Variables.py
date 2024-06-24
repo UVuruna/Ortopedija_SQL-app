@@ -26,6 +26,7 @@ from tkinter import *
 from ttkbootstrap import widgets
 from ttkbootstrap.dialogs.dialogs import Messagebox
 import customtkinter as ctk
+import queue
 
 # F_Media_Manipulation
 from PIL import Image, ImageTk, ImageDraw
@@ -36,11 +37,14 @@ import easyocr
 import numpy as np
 
 # G_Viewer
+import json
 import inspect
 from tkinter.font import nametofont
 import threading
+from ttkbootstrap.style import Colors
 
-
+WIDTH = 1782
+HEIGHT = 927
 
 FONT = "Montserrat"
 F_SIZE = 11
@@ -55,14 +59,15 @@ font_entry = (FONT, F_SIZE)
 
 title_height = 180
 
-THEME = 'uv13'
+THEME = 'dark_blue'
 
 def_font = (FONT, F_SIZE)
 
 
-labelColor = "light" if THEME!='uv12' else "active"
-titleTxtColor = "light" if THEME!='uv12' else "primary"
-dangerButtTxtColor = "active" if THEME!='uv12' else "dark"
+labelColor = "light" if THEME!='light_blue' else "active"
+theme_fg = "light" if THEME!='light_blue' else "dark"
+titleTxtColor = "light" if THEME!='light_blue' else "primary"
+dangerButtTxtColor = "active" if THEME!='light_blue' else "dark"
 bootstyle_table = "primary"
 bootstyle_check = "primary"
 
@@ -99,7 +104,7 @@ search_butt_width = 10
 title_ImgData = ("C:/Users/vurun/Desktop/App/GodHand_Transparent_smallest.png",0.007,0.033)
 
 form_name = "Pacijent"
-form_groups = {"Default": {"start":4,"Dijagnoza":3, "Hospitalizacija":None},"Alternative": {"start":1,"Doktori":5,"Slike":None}}
+form_groups = {"Default": {"start":4,"Dijagnoza":3, "Hospitalizacija":None},"Alternative": {"start":1,"Doktori":6,"Slike":None}}
 
 default_form_entry = { "Ime": ("Ime", 'StringVar', form_medium_width),
                     "Prezime": ("Prezime", 'StringVar', form_medium_width),
@@ -112,13 +117,15 @@ default_form_entry = { "Ime": ("Ime", 'StringVar', form_medium_width),
                     "Datum Operacije": ("Operacija", 'DateEntry', form_date_width),
                     "Datum Otpusta": ("Otpust", 'DateEntry', form_date_width)        }
 
-alternative_form_entry = {   "Patient Info":("","Info"),
-                            "Operator": ("Operator", 'StringVar', form_large_width-3),
-                            "Anesteziolog": ("Anesteziolog", 'StringVar', form_large_width-3),
-                            "Anestetičar": ("Anestetičar", 'StringVar', form_large_width-3),
-                            "Asistenti": ("Asistenti", 'Text', form_large_width-3),
-                            "Gostujući Specijalizanti": ("Gostujući\nSpecijalizanti", 'Text', form_large_width-3),
-                             "Slike":("","Slike") }
+alternative_form_entry = {  "Patient Info":("","Info"),
+                            "Operator": ("Operator", 'StringVar', form_large_width-4),
+                            "Asistenti": ("Asistenti", 'Text', form_large_width-4),
+                            "Anesteziolog": ("Anesteziolog", 'StringVar', form_large_width-4),
+                            "Anestetičar": ("Anestetičar", 'StringVar', form_large_width-4),
+                            "Instrumentarka": ("Instrumentarka", 'StringVar', form_large_width-4),
+                            "Gostujući Specijalizant": ("Gostujući\nSpecijalizant", 'Text', form_large_width-4),
+                            "Slike":("","Slike"),
+                            "Opis":("Opis","StringVar",form_large_width-4) }
 
 default_form_buttons = [("ADD",None),
                         ("UPDATE",None),
