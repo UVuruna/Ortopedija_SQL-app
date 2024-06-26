@@ -40,8 +40,8 @@ def error_catcher(CLASS=None):
                 return func(*args, **kwargs)
             except Exception as e:
                 if CLASS:
-                    # Ovo je da bi dobio 100 ms preciznost (00.0 s)
-                    Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.{datetime.now().strftime("%f")[0]}' 
+                    # Ovo je da bi dobio 1 ms preciznost (0.000 s)
+                    Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.{datetime.now().strftime("%f")[:3]}' 
                     fullerror = traceback.format_exc()
                     def execute():
                         CLASS.execute_Insert('logs',**{'ID Time':Time, 'Email':CLASS.GD.UserSession['User'],

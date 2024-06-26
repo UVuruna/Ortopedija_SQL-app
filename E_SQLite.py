@@ -31,10 +31,10 @@ class Database:
         self.lock = threading.Lock()
 
         # KOLONE TABELA
-        self.MKB = self.show_columns('mkb10 2010')[1:]        
-        self.patient = self.show_columns('pacijenti')[1:]
-        self.diagnose = self.show_columns('pacijenti dijagnoza')[-2:]
-        self.operation = self.show_columns('operaciona lista')[1:]
+        self.mkb10 = self.show_columns('mkb10 2010')[1:]        
+        self.pacijenti = self.show_columns('pacijenti')[1:]
+        self.pacijenti_dijagnoza = self.show_columns('pacijenti dijagnoza')[-2:]
+        self.operaciona_lista = self.show_columns('operaciona lista')[1:]
         self.slike = self.show_columns('slike')[2:-1]
         self.logs = self.show_columns('logs')[:-2]
         self.session = self.show_columns('session')[1:]
@@ -85,12 +85,13 @@ class Database:
         if isinstance(value,tuple) and len(value)==2:
             return f"( {col} BETWEEN '{value[0]}' AND '{value[1]}' ) {andor} "
         elif isinstance(value,tuple) and len(value)==1:
-            if "Dg" in col:
+            if col in self.pacijenti_dijagnoza:
                 return f"( `mkb10 2010`.`MKB - šifra` LIKE '%{value[0]}%' AND {col} = 1 ) {andor} "
             else:
                 return f"{col} LIKE '%{value[0]}%' {andor} "
         else:
             return f"{col}='{value}' {andor} "
+        
 
     #@method_efficency
     #@error_catcher  
@@ -155,10 +156,10 @@ class Database:
                 joinoperation = False
                 for val in args:
                     TXT = f"`{val}`" if " " in val else val
-                    if val in self.diagnose:
+                    if val in self.pacijenti_dijagnoza:
                         joindiagnose = True
                         select_values += f"GROUP_CONCAT(CASE WHEN `pacijenti dijagnoza`.{TXT}=1 THEN `mkb10 2010`.`MKB - šifra` END) AS {TXT},"
-                    elif val in self.operation:
+                    elif val in self.operaciona_lista:
                         joinoperation = True
                         select_values += f"`operaciona lista`.{TXT},"
                     else:
@@ -171,10 +172,10 @@ class Database:
                     if 'Dg' in k:
                         joindiagnose = True
                     TXT = f"`{k}`" if " " in k else k
-                    if k in self.diagnose:
+                    if k in self.pacijenti_dijagnoza:
                         joindiagnose = True
                         col = f"`pacijenti dijagnoza`.{TXT}"
-                    elif k in self.operation:
+                    elif k in self.operaciona_lista:
                         joinoperation = True
                         col = f"`operaciona lista`.{TXT}"
                     else:
@@ -191,8 +192,8 @@ class Database:
 
                 join_tables = ""
                 if joindiagnose:
-                    join_tables += f"JOIN `pacijenti dijagnoza` ON {table}.id_pacijent = `pacijenti dijagnoza`.id_pacijent " + \
-                                    f"JOIN `mkb10 2010` ON `pacijenti dijagnoza`.id_dijagnoza = `mkb10 2010`.id_dijagnoza "
+                    join_tables += f"LEFT JOIN `pacijenti dijagnoza` ON {table}.id_pacijent = `pacijenti dijagnoza`.id_pacijent " + \
+                                    f"LEFT JOIN `mkb10 2010` ON `pacijenti dijagnoza`.id_dijagnoza = `mkb10 2010`.id_dijagnoza "
                 if joinoperation:
                     join_tables += f"LEFT JOIN `operaciona lista` ON {table}.id_pacijent = `operaciona lista`.id_pacijent "
 
@@ -249,19 +250,19 @@ class Database:
             try:
                 self.connect()
                 SELECT = ""
-                for col in self.patient:
+                for col in self.pacijenti:
                     SELECT += "pacijenti."
                     SELECT += f"`{col}`, " if " " in col else f"{col}, "
-                for col in self.diagnose:
+                for col in self.pacijenti_dijagnoza:
                     TXT = f"`{col}`" if " " in col else col
                     SELECT += f"GROUP_CONCAT(DISTINCT CASE WHEN `pacijenti dijagnoza`.{TXT}=1 THEN `mkb10 2010`.`MKB - šifra` END) AS {TXT}, "
-                for col in self.operation:
+                for col in self.operaciona_lista:
                     SELECT += "`operaciona lista`."
                     SELECT += f"`{col}`, " if " " in col else f"{col}, "
                 SELECT += "GROUP_CONCAT(DISTINCT slike.Naziv) AS Slike"
 
-                diagnosejoin = f"JOIN `pacijenti dijagnoza` ON pacijenti.id_pacijent = `pacijenti dijagnoza`.id_pacijent " + \
-                                    f"JOIN `mkb10 2010` ON `pacijenti dijagnoza`.id_dijagnoza = `mkb10 2010`.id_dijagnoza "
+                diagnosejoin = f"LEFT JOIN `pacijenti dijagnoza` ON pacijenti.id_pacijent = `pacijenti dijagnoza`.id_pacijent " + \
+                                    f"LEFT JOIN `mkb10 2010` ON `pacijenti dijagnoza`.id_dijagnoza = `mkb10 2010`.id_dijagnoza "
                 operationjoin = f"LEFT JOIN `operaciona lista` ON pacijenti.id_pacijent = `operaciona lista`.id_pacijent "
                 slikejoin = f"LEFT JOIN slike ON pacijenti.id_pacijent = slike.id_pacijent"
                 JOIN = diagnosejoin+operationjoin+slikejoin
@@ -329,11 +330,12 @@ class Database:
                 loggin = ""
                 values = []
                 for k,v in kwargs.items():
-                    txt = k if " " not in k else f"`{k}`"
-                    columns += f"{txt}, "
-                    loggin += f"{v}, "
-                    values.append(v)
-                    counter+=1
+                    if v:
+                        txt = k if " " not in k else f"`{k}`"
+                        columns += f"{txt}, "
+                        loggin += f"{v}, "
+                        values.append(v)
+                        counter+=1
                 columns = columns.rstrip(", ")
                 loggin = loggin.rstrip(", ")
                 values = tuple(values)
@@ -345,6 +347,8 @@ class Database:
                 self.LoggingQuery = self.format_sql(logginquery)
                 self.cursor.execute(query,values)
                 self.connection.commit()
+                self.cursor.execute("SELECT last_insert_rowid()")
+                return self.cursor.fetchone()[0]
             finally:
                 self.close_connection()
     
@@ -390,90 +394,20 @@ class Database:
                 self.close_connection()
 
 if __name__=='__main__':
-    #from C_GoogleDrive import GoogleDrive
-    #'''
     rhmh = Database('RHMH.db')
 
     table = rhmh.execute_selectquery("SELECT * from pacijenti")
-    for i,v in enumerate(table):
-        if i==10:
-            break
+    for i,v in enumerate(table[-10:]):
         print(v)
 
     table = rhmh.execute_selectquery("SELECT * from `pacijenti dijagnoza`")
-    for i,v in enumerate(table):
-        if i==10:
-            break
+    for i,v in enumerate(table[-10:]):
         print(v)
 
     table = rhmh.execute_selectquery("SELECT * from slike")
-    for i,v in enumerate(table):
-        if i==10:
-            break
+    for i,v in enumerate(table[-10:]):
         print(v)
 
-
-    '''
-    rhmh.connect()
-    query = """CREATE TABLE `operaciona lista` (
-                `id_pacijent` INT PRIMARY KEY NOT NULL,
-                Operator TEXT,
-                Asistenti TEXT,
-                Anesteziolog TEXT,
-                Anestetičar TEXT,
-                Instrumentarka TEXT,
-                `Gostujući Specijalizant` TEXT
-            );"""
-    
-    
-    rhmh.cursor.execute("DROP TABLE IF EXISTS `operaciona lista`")
-    rhmh.cursor.execute(query)
-    
-    rhmh.close_connection()
-    rhmh.Vaccum_DB()
-
-    #'''
-
-    '''
-    rhmh.connect()
-    query = """CREATE TABLE logs (
-                `ID Time` TEXT PRIMARY KEY NOT NULL,
-                Email TEXT NOT NULL,
-                Query TEXT NOT NULL,
-                Error TEXT DEFAULT 'Success',
-                `Full Query` TEXT,
-                `Full Error` TEXT
-            );"""
-    
-    
-    rhmh.cursor.execute("DROP TABLE IF EXISTS logs")
-    rhmh.cursor.execute(query)
-
-    #'''
-    '''
-    query2 = """CREATE TABLE session (
-                id_session INTEGER PRIMARY KEY AUTOINCREMENT,
-                Email TEXT NOT NULL,
-                `Logged IN` TEXT NOT NULL,
-                `Logged OUT` TEXT NOT NULL,
-                `Session Length` TEXT NOT NULL,
-                Searching INTEGER,
-                `Searching efficency` INTEGER,
-                Modifying INTEGER,
-                `Modifying efficency` INTEGER,
-                Download INTEGER,
-                `Download efficency` INTEGER,
-                Upload INTEGER,
-                `Upload efficency` INTEGER
-            );"""
-    
-    rhmh.connect()
-    rhmh.cursor.execute("DROP TABLE IF EXISTS session")
-    rhmh.cursor.execute(query2)
-    rhmh.close_connection()
-
-    rhmh.Vaccum_DB()
-    #'''
-
-    #user = GoogleDrive()
-    #user.upload_UpdateFile(RHMH_DB['id'],"RHMH.db",RHMH_DB['mime'])
+    table = rhmh.execute_selectquery("SELECT * from `operaciona lista`")
+    for i,v in enumerate(table[-10:]):
+        print(v)

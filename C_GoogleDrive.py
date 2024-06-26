@@ -12,7 +12,7 @@ class GoogleDrive(Singleton):
                             'https://www.googleapis.com/auth/userinfo.email',
                             'openid']
             self.creds = self.authenticate_google_drive()
-            self.drive_service = build('drive', 'v3', credentials=self.creds)
+            self.connection = build('drive', 'v3', credentials=self.creds)
             GoogleDrive._initialized = True
 
             self.UserSession = {'User':self.get_UserEmail()}
@@ -36,9 +36,19 @@ class GoogleDrive(Singleton):
             with open('www_token.pickle', 'wb') as token:
                 pickle.dump(creds, token)
         return creds
+    
+    def get_UserEmail(self):
+        oauth2_service = build('oauth2', 'v2', credentials=self.creds)
+        user_info = oauth2_service.userinfo().get().execute()
+        return user_info.get('email')
+    
+    def get_FileInfo(self, file_id):
+        file = self.connection.files().get(fileId=file_id, fields='name, size, mimeType').execute()
+        return file
+    
 
-    def download_File(self, file_id, destination):
-        request = self.drive_service.files().get_media(fileId=file_id)
+    def download_File(self, file_id, destination): # return je destination
+        request = self.connection.files().get_media(fileId=file_id)
         with open(destination, 'wb') as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False
@@ -46,7 +56,7 @@ class GoogleDrive(Singleton):
                 status, done = downloader.next_chunk()
     
     def download_BLOB(self, file_id):
-        request = self.drive_service.files().get_media(fileId=file_id)
+        request = self.connection.files().get_media(fileId=file_id)
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
         done = False
@@ -54,34 +64,29 @@ class GoogleDrive(Singleton):
             status, done = downloader.next_chunk()
         fh.seek(0)
         return fh.getvalue()
-
-
-    def upload_UpdateFile(self, file_id, file_path, mime_type):
-        media = MediaFileUpload(file_path, mimetype=mime_type)
-        self.drive_service.files().update(fileId=file_id, media_body=media).execute()    
+   
 
     def upload_NewFile_asFile(self, file_name, GoogleDrive_folder, file_path, mime_type):
         file_metadata = {'name': file_name, 'parents': GoogleDrive_folder}
         media = MediaFileUpload(file_path, mimetype=mime_type)
-        file = self.drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        file = self.connection.files().create(body=file_metadata, media_body=media, fields='id').execute()
         return file.get('id')
 
     def upload_NewFile_asBLOB(self, file_name, GoogleDrive_folder, blob_data, mime_type):
         file_metadata = {'name': file_name, 'parents': GoogleDrive_folder}
         media = MediaIoBaseUpload(io.BytesIO(blob_data), mimetype=mime_type)
-        file = self.drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        file = self.connection.files().create(body=file_metadata, media_body=media, fields='id').execute()
         return file.get('id')
     
 
-    def get_UserEmail(self):
-        oauth2_service = build('oauth2', 'v2', credentials=self.creds)
-        user_info = oauth2_service.userinfo().get().execute()
-        return user_info.get('email')
-    
-    def get_FileInfo(self, file_id):
-        file = self.drive_service.files().get(fileId=file_id, fields='name, size, mimeType').execute()
-        return file
+    def upload_UpdateFile(self, file_id, file_path, mime_type):
+        media = MediaFileUpload(file_path, mimetype=mime_type)
+        self.connection.files().update(fileId=file_id, media_body=media).execute()
+        return True
 
+    def delete_file(self, file_id):
+        self.connection.files().delete(fileId=file_id).execute()
+        return True
 
 if __name__ == '__main__':
 

@@ -106,9 +106,9 @@ title_ImgData = ("C:/Users/vurun/Desktop/App/GodHand_Transparent_smallest.png",0
 form_name = "Pacijent"
 form_groups = {"Default": {"start":4,"Dijagnoza":3, "Hospitalizacija":None},"Alternative": {"start":1,"Doktori":6,"Slike":None}}
 
-default_form_entry = { "Ime": ("Ime", 'StringVar', form_medium_width),
-                    "Prezime": ("Prezime", 'StringVar', form_medium_width),
-                    "Godište": ("Godište", 'StringVar', form_small_width),
+default_form_entry = { "Ime": ("Ime", 'Validate', form_medium_width),
+                    "Prezime": ("Prezime", 'Validate', form_medium_width),
+                    "Godište": ("Godište", 'Validate', form_small_width),
                     "Pol": ("Pol", 'Combobox', form_small_width, ("Muško", "Žensko")),
                     "Dg Glavna": ("Glavna", 'Validate', form_large_width),
                     "Dg Sporedna": ("Sporedna", 'Validate', form_large_width),
@@ -164,3 +164,5 @@ MIME = {'PNG' : 'image/png',
 
 WAIT = 10 # ms
 BUTTON_LOCK = 500 # ms
+
+ThemeColors = {}

@@ -22,21 +22,22 @@ class Buttons(Singleton):
             self.MessageBoxParent: Frame = None
             self.PatientFocus_ID = None
             self.Table_Slike:tb.ttk.Treeview = None
-            self.Slike_Viewer:Canvas = None
-            self.ValidationState:bool = True
+
+            self.Validation_Widgets = []
+            self.Valid_Dijagnoza:bool = True
+            self.Valid_Godiste:bool = True
+            self.Valid_Datum:bool = True
+            self.Valid_NotBlank:bool = True
 
             self.FormTitle = None
             self.PatientInfo = None
-            self.Patient_FormVariables = dict()
+            self.Patient_FormVariables = {'pacijenti':{},'pacijenti dijagnoza':{},'operaciona lista':{},'slike':{}}
             self.MKB_FormVariables = dict()
             self.Logs_FormVariables = dict()
             self.FilterOptions = dict()
             self.MKB_all = None
     
-    def format_date(self,date_str,inp,out):
-        return datetime.strptime(str(date_str),inp).strftime(out)
-    
-    def is_date(self,date_string):
+    def is_DB_date(self,date_string): # Checks if it is DB Date Format
         try:
             datetime.strptime(str(date_string), '%Y-%m-%d')
             return True
@@ -59,53 +60,22 @@ class Buttons(Singleton):
         elif isinstance(widget,tb.Label):
             widget.config(text="")
 
-    def Clear_Form(self):
-        self.PatientFocus_ID = None
-        self.FormTitle[0].configure(bootstyle=self.FormTitle[1])
-        self.PatientInfo.config(text="")
-        for widget in self.Patient_FormVariables.values():
-            self.empty_widget(widget)
-    
-    #@method_efficency
-    #@error_catcher
-    def Add_Patient(self):
-        print("---"*66)
-        for col,val in self.Patient_FormVariables.items():
-            print(col,": ",val)
-        self.UPDATE = True
-        messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
-        return
-
-    #@method_efficency
-    #@error_catcher
-    def Add_MKB(self):
-        print("---"*66)
-        for col,val in self.MKB_FormVariables.items():
-            print(col,": ",val)
-        self.UPDATE = True
-        messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
-        return
-    
-    def get_widget_value(self,widget,idx):
+    def get_widget_value(self,widget):
         if isinstance(widget, StringVar):
             return widget.get()
         elif isinstance(widget, Text):
             return widget.get("1.0", END).strip()
         elif isinstance(widget, widgets.DateEntry):
             return widget.entry.get()
-        elif isinstance(widget, tb.Treeview):
-            values = []
-            for child in widget.get_children():
-                values.append(widget.item(child, 'values')[idx])
-            return values
         else:
             return None
         
     def set_widget_value(self,widget,value):
         if not value:
             return
-        if self.is_date(value):
-            value = self.format_date(value,"%Y-%m-%d","%d-%b-%y")
+        if self.is_DB_date(value):
+            # DB Date Format TO Form Date Format
+            value = datetime.strptime(str(value),"%Y-%m-%d").strftime("%d-%b-%Y")
         if isinstance(widget, StringVar):
             widget.set(value)
         elif isinstance(widget, Text):
@@ -122,102 +92,188 @@ class Buttons(Singleton):
                     row = [i+1,value]
                     widget.insert('', END, values=row)
 
-    #@method_efficency
-    #@error_catcher
+    def Clear_Form(self):
+        self.PatientFocus_ID = None
+        self.FormTitle[0].configure(bootstyle=self.FormTitle[1])
+        self.PatientInfo.config(text="")
+        for table_groups in self.Patient_FormVariables.values():
+            for widget in table_groups.values():
+                self.empty_widget(widget)
+    
+    def Add_Patient(self):
+        if not (self.Valid_Dijagnoza and self.Valid_Datum and self.Valid_Godiste and self.Valid_NotBlank):
+            Messagebox.show_warning(parent=self.MessageBoxParent,
+                                    title=f"Inserting failed!", message="Wrong data in Patient Form")
+            return
+        reportDict = {}
+        for table in self.Patient_FormVariables.keys():
+            insertDict = {}
+            if table=='pacijenti':
+                trenutna_godina = datetime.now().year
+                for col,widget in self.Patient_FormVariables[table].items():
+                    value = self.get_widget_value(widget)
+                    if value:
+                        if "Datum" in col: # FROM Form Date Format TO DB Date Format
+                            value = datetime.strptime(value, "%d-%b-%Y").strftime("%Y-%m-%d")
+                            if col=='Datum Prijema':
+                                trenutna_godina = datetime.strptime(value, "%Y-%m-%d").year
+                        elif col=='Godište':
+                            godiste = int(value)
+                        insertDict[col] = value
+                        reportDict[col] = value
+                insertDict['Starost'] = trenutna_godina-godiste
+                ID = self.DB.execute_Insert(table,**insertDict)
+            elif table == 'pacijenti dijagnoza':
+                for col,widget in self.Patient_FormVariables[table].items():
+                    value = self.get_widget_value(widget)
+                    if value:
+                        value = value.replace(","," ")
+                        value = value.split()
+                        for mkb in value:
+                            insertDict.clear()
+                            insertDict['id_pacijent'] = ID
+                            insertDict[col] = 1
+                            reportDict[col] = mkb
+                            insertDict['id_dijagnoza'] = self.DB.execute_selectquery(f'SELECT id_dijagnoza FROM `mkb10 2010` WHERE `MKB - šifra` = "{mkb}"')[0][0]
+                            self.DB.execute_Insert(table,**insertDict)
+            elif table=='operaciona lista':
+                for col,widget in self.Patient_FormVariables[table].items():
+                    value = self.get_widget_value(widget)
+                    if value:
+                        if "," in value:
+                            value = value.split(",")
+                            fix = []
+                            for doc in value:
+                                fix.append(doc.strip())
+                            value = (" , ".join(fix))
+                        insertDict[col] = value
+                        reportDict[col] = value
+                insertDict["id_pacijent"] = ID
+                self.DB.execute_Insert(table,**insertDict)
+        report = ""
+        for col,val in reportDict.values():
+            report += f"{col}: {val}\n"
+        Messagebox.show_info(parent=self.MessageBoxParent,
+                    title=f"New Patient added", message=report[:-1], alert=True)
+
+    def Add_MKB(self):
+        insertDict = {}
+        for col,val in self.MKB_FormVariables.items():
+            insertDict[col] = self.get_widget_value(val)
+
+        if len(list(insertDict.keys()))==2:
+            self.DB.execute_Insert('mkb10 2010',**insertDict)
+            report = ""
+            for col,val in insertDict.values():
+                report += f"{col}: {val}\n"
+            Messagebox.show_info(parent=self.MessageBoxParent,
+                        title=f"New MKB added", message=report[:-1], alert=True)
+        else:
+            Messagebox.show_warning(parent=self.MessageBoxParent,
+                                    title=f"Inserting failed!", message="Niste uneli sve tražene podatke")
+    
     def Update_Patient(self):
-        print("---"*66)
-        report = "You didn't make changes.\nUpdate unsuccessful !!!"
         patient = self.DB.get_patient_data(self.PatientFocus_ID)
-        update_Dict = {'id':self.PatientFocus_ID}
-        insert_Dict = {'id':self.PatientFocus_ID}
-        delete_Dict = {'id':self.PatientFocus_ID}
-        operation_Dict = {}
+        ID_PATIENT = ('id_pacijent',self.PatientFocus_ID)
+        update_Dict = {}
+        insert_Dict = {}
+        delete_Dict = {}
+
         report_Dict = {}
  
         if patient:
-            PATIENT = f"{patient['Ime']} {patient['Prezime']} ({self.format_date(patient["Datum Prijema"],"%Y-%m-%d","%d-%b-%y")})"
-            update_operation = False
-            for col,widget in self.Patient_FormVariables.items():
-                if col in ["Opis","Slike"]:
-                    print(col)
+            PATIENT = f"{patient['Ime']} {patient['Prezime']}"
+            try:
+                # FROM DB Date Formate TO Patient Report Date Format
+                datumprijema = f" ({datetime.strptime(str(patient["Datum Prijema"]),"%Y-%m-%d").strftime("%d-%b-%y")})"
+                PATIENT += datumprijema
+            except KeyError:
+                pass
+
+            for table,tabledict in self.Patient_FormVariables.items():
+                if table == 'slike':
                     continue
-                try:
-                    old_value = patient[col]
-                except KeyError:
-                    old_value = ""
-                if self.is_date(old_value):
-                    old_value = self.format_date(old_value,"%Y-%m-%d","%d-%b-%y")
-                new_value = self.get_widget_value(widget,1)
+                delete_Dict[table] = {}
+                for col,widget in tabledict.items():
+                    try:
+                        OLD = patient[col]
+                        if table=='pacijent' and 'Datum' in col:
+                            OLD = datetime.strptime(OLD,"%Y-%m-%d").strftime("%d-%b-%Y")
+                    except KeyError:
+                        OLD = ""
+                    
+                    NEW = self.get_widget_value(widget)
 
-                new_value:str = ' '.join(str(new_value).split())
-                old_value:str = ' '.join(str(old_value).split())
-                if new_value!=old_value:
-                    report_Dict[col] = {"New":new_value,"Old":str(old_value)}
-                    if col in self.DB.diagnose:
-                        old = [i.strip() for i in old_value.split(',')]
-                        new = [i.strip() for i in new_value.split(',')]
-                        INSERT = list(set(new)-set(old))
-                        DELETE = list(set(old)-set(new))
-                        if DELETE and DELETE[0]:
-                            delete_Dict[col] = DELETE
-                        if INSERT and INSERT[0]:
-                            insert_Dict[col] = INSERT
-                    else:
-                        if col in self.DB.operation:
-                            new_value = " , ".join([i.strip() for i in new_value.split(',')])
-                            if old_value:
-                                update_operation = True
-                            operation_Dict[col] = new_value
+                    NEW = ' '.join(str(NEW).split()) # da se srede visak razmaka
+                    OLD = ' '.join(str(OLD).split()) # mora str zbog int values
+                    if NEW!=OLD:
+                        report_Dict[col] = {"New":NEW,"Old":OLD}
+                        if table=='pacijenti dijagnoza':
+                            old = [i.strip() for i in OLD.split(',')]
+                            new = [i.strip() for i in NEW.split(',')]
+                            INSERT = set(new)-set(old) ; INSERT.remove("")
+                            DELETE = set(old)-set(new) ; DELETE.remove("")
+                            if DELETE:
+                                delete_Dict[table][col] = DELETE
+                            if INSERT:
+                                insert_Dict[table][col] = INSERT
+                        elif table=='operaciona lista':
+                            NEW = " , ".join([i.strip() for i in NEW.split(',')])
+                            if OLD:
+                                update_Dict[table][col] = NEW
+                            else:
+                                insert_Dict[table][col] = NEW
+                        else: # Table pacijenti
+                            if OLD:
+                                update_Dict[table][col] = NEW
+                            else:
+                                insert_Dict[table][col] = NEW
+
+                if report_Dict:
+                    if (self.Valid_Dijagnoza and self.Valid_Datum and self.Valid_Godiste and self.Valid_NotBlank):
+                        report = f"{PATIENT}\n"
+                        for k,v in report_Dict.items():
+                            report += f"{k}"
+                            report += f"\n  New: {v['New']}\n"
+                            if v['Old']:
+                                report += f"  Old: {v["Old"]}\n"
                         else:
-                            update_Dict[col] = new_value
-            if update_operation is True:
-                update_Dict.update(operation_Dict)
-            else:
-                insert_Dict.update(operation_Dict)
-            if report_Dict and self.ValidationState:
-                report = f"{PATIENT}\n"
-                for k,v in report_Dict.items():
-                    report += f"{k}"
-                    report += f"\n  New: {v['New']}\n"
-                    if v['Old']:
-                        report += f"  Old: {v["Old"]}\n"
+                            confirmation = Messagebox.yesno(parent=self.MessageBoxParent,
+                                            title=f"Do You Want to Process Update?", message=report[:-1], alert=True)
+                    else:
+                        report = "You have entered incorrect data.\nUpdate failed !!!"
                 else:
-                    confirmation = Messagebox.yesno(parent=self.MessageBoxParent,
-                                    title=f"Do You Want to Process Update?", message=report[:-1], alert=True)
-
-            elif not self.ValidationState:
-                report = "You have entered incorrect data.\nUpdate unsuccessful !!!"
+                    report = "You made no changes to current patient.\nUpdate failed !!!"
         else:
-            report = "You didn't select Patient.\nUpdate unsuccessful !!!"
+            report = "You didn't select Patient.\nUpdate failed !!!"
 
         try:
             if confirmation=="Yes":
                 print("YES")
-                self.UPDATE = True
-                print("UPDATING")
-                for k,v in update_Dict.items():
-                    print(k,": ",v)
-                print("DELETING")
-                for k,v in delete_Dict.items():
-                    print(k,": ",v)
-                print("INSERTING")
-                for k,v in insert_Dict.items():
-                    print(k,": ",v)
+                print(update_Dict)
+                print(delete_Dict)
+                print(insert_Dict)
             elif confirmation=="No":
                 print("No")
             else:
                 print("NONE")
         except UnboundLocalError:
-            Messagebox.show_error(parent=self.MessageBoxParent ,title="Update", message=report)
-        return
+            Messagebox.show_error(parent=self.MessageBoxParent ,title="Update failed!", message=report)
     
-    #@method_efficency
-    #@error_catcher
     def Update_MKB(self):
-        print("---"*66)
-        self.UPDATE = True
-        messagebox.showwarning("Greška","Niste uneli sve tražene podatke!")
-        return
+        updateDict = {}
+        print(self.MKB_FormVariables)
+        for col,val in self.MKB_FormVariables.items():
+            updateDict[col] = self.get_widget_value(val)
+
+        mkb = self.DBMS.Table_MKB.item(self.DBMS.Table_MKB.focus())['values'][1]
+        ID = self.DB.execute_selectquery(f"SELECT id_dijagnoza from `mkb10 2010` WHERE `MKB - šifra` = {mkb}")
+
+        if len(list(updateDict.keys()))==2:
+            self.DB.execute_Update(table='mkb10 2010',id=('id_dijagnoze',ID),**updateDict)
+        else:
+            Messagebox.show_warning(parent=self.MessageBoxParent,
+                                    title=f"Updating failed!", message="Niste uneli sve tražene podatke")
     
     #@method_efficency
     #@error_catcher
@@ -243,34 +299,44 @@ class Buttons(Singleton):
         self.UPDATE = True
         print(self.GD.UserSession)
 
-    def Show_Image_execute(self,Parent:Frame,ID=None,MediaType=None,blob_data=False):
+    def Show_Image_execute(self,ID=None,MediaType=None,blob_data=False):
         if blob_data is False:
             blob_data = self.GD.download_BLOB(ID)
+
+        width = Media.Slike_Viewer.winfo_width()
+        height = Media.Slike_Viewer.winfo_height()
+
         if "image" in MediaType:
-            image = Media.get_image(blob_data)
-            image, Width, Height = Media.resize_image(image, Parent.winfo_width(), Parent.winfo_height())
+            Media.Image_Active = Media.get_image(blob_data)
+            image = Media.resize_image(Media.Image_Active, width, height, savescale=True)
             image = ImageTk.PhotoImage(image)
 
-            # Ažuriranje dimenzija Canvas widgeta
-            self.Slike_Viewer.configure(width=Width, height=Height)
-            self.Slike_Viewer.create_image(0, 0, anchor=NW, image=image)
-            self.Slike_Viewer.image = image
-            self.Slike_Viewer.bind("<Double-1>",lambda event,image=blob_data: Media.open_image(event,image))
+            Media.Slike_Viewer.create_image(width//2, height//2,  anchor='center', image=image)
+            Media.Slike_Viewer.image = image
+            Media.Slike_Viewer.config(scrollregion=Media.Slike_Viewer.bbox(ALL))
+            Media.Slike_Viewer.bind("<Double-1>",lambda event,image_data=blob_data: Media.open_image(event,image_data))
+            Media.Slike_Viewer.bind("<MouseWheel>", Media.zoom)
+            Media.Slike_Viewer.bind("<Button-4>", Media.zoom)
+            Media.Slike_Viewer.bind("<Button-5>", Media.zoom)
+            Media.Slike_Viewer.bind('<ButtonPress-1>', Media.move_from)
+            Media.Slike_Viewer.bind('<B1-Motion>',     Media.move_to)
             
         elif "video" in MediaType:
             thumbnail,video_data = Media.create_video_thumbnail(blob_data)
-            thumbnail, Width, Height = Media.resize_image(thumbnail, Parent.winfo_width(), Parent.winfo_height())
+            thumbnail = Media.resize_image(thumbnail, width, height)
             thumbnail = ImageTk.PhotoImage(thumbnail)
             
-            self.Slike_Viewer.configure(width=Width, height=Height)
-            self.Slike_Viewer.create_image(0, 0, anchor=NW, image=thumbnail)
-            self.Slike_Viewer.image = thumbnail
-            self.Slike_Viewer.bind("<Button-1>",lambda event,video=video_data: Media.play_video(event,video))
+            Media.Slike_Viewer.create_image(width//2, height//2, anchor='center', image=thumbnail)
+            Media.Slike_Viewer.image = thumbnail
+            Media.Slike_Viewer.config(scrollregion=Media.Slike_Viewer.bbox(ALL))
+            Media.Slike_Viewer.bind("<Button-1>",lambda event,video=video_data: Media.play_video(event,video))
 
     #@method_efficency
     #@error_catcher
     def Show_Image(self,event=None,ID=False,BLOB=False):
-        self.Slike_Viewer.delete("all")
+        Media.Slike_Viewer.delete("all")
+        Media.Image_Active = None
+
         if BLOB is False:
             if ID is False:
                 try:
@@ -278,29 +344,31 @@ class Buttons(Singleton):
                 except IndexError:
                     return
             media_type,google_ID = self.DB.execute_selectquery(f"SELECT Format,image_data from slike WHERE id_slike={ID}")[0]
-        
-        self.ROOT.update() # CEKA SREDJIVANJE WIDGET
-        # png LOADING...
-        self.Slike_Viewer.unbind("<Button-1>")
-        parent_name = self.Slike_Viewer.winfo_parent()
-        parent_widget = self.Slike_Viewer.nametowidget(parent_name)
 
-        loading_image = Image.open('C:/Users/vurun/Desktop/App/loading_circle.png')
-        resized_image, Width, Height  = Media.resize_image(loading_image, parent_widget.winfo_width(), parent_widget.winfo_height())
-        tk_image = ImageTk.PhotoImage(resized_image)
+        events = ["<Button-1>","<Double-1>","<MouseWheel>","<Button-4>","<Button-5>","<ButtonPress-1","<B1-Motion>"]
+        for event in events:
+            Media.Slike_Viewer.unbind(event)
+        self.ROOT.update() # CEKA SREDJIVANJE WIDGET
+
+        width = Media.Slike_Viewer.winfo_width()
+        height = Media.Slike_Viewer.winfo_height()
+        image = Image.open('C:/Users/vurun/Desktop/App/loading_circle.png')
+        image = Media.resize_image(image, width, height)
+        image = ImageTk.PhotoImage(image)
+
+        Media.Slike_Viewer.create_image(width//2, height//2, anchor='center', image=image)
+        Media.Slike_Viewer.image = image
+        Media.Slike_Viewer.config(scrollregion=Media.Slike_Viewer.bbox(ALL))
         
-        self.Slike_Viewer.configure(width=Width, height=Height)
-        self.Slike_Viewer.create_image(0, 0, anchor=NW, image=tk_image)
-        self.Slike_Viewer.image = tk_image
         # AFTER LOADING.. png Actual Image
         if BLOB is False:
             self.ROOT.after(WAIT,
-                            lambda Parent=parent_widget,ID=google_ID,MediaType=media_type: 
-                            self.Show_Image_execute(Parent,ID,MediaType))
+                            lambda ID=google_ID,mediatype=media_type: 
+                            self.Show_Image_execute(ID=ID,MediaType=mediatype))
         else:
             self.ROOT.after(WAIT,
-                            lambda parent=parent_widget,mediatype='image',blob=BLOB: 
-                            self.Show_Image_execute(Parent=parent,MediaType=mediatype,blob_data=blob))
+                            lambda mediatype='image',blob=BLOB: 
+                            self.Show_Image_execute(MediaType=mediatype,blob_data=blob))
 
     #@method_efficency
     #@error_catcher
@@ -326,7 +394,7 @@ class Buttons(Singleton):
     def Show_Image_FullScreen(self,event=None,BLOB=None):
         print("---"*66)
         if not BLOB:
-            ID = self.Patient_FormVariables['Slike'].item(self.Patient_FormVariables['Slike'].focus())['values'][1].split("_")[0]
+            ID = event.widget.item(event.widget.focus())['values'][1].split("_")[0]
             def execute():
                 self.Show_Image(ID=ID)
         else:
@@ -346,56 +414,114 @@ class Buttons(Singleton):
             for col,val in data.items():
                 if val:
                     if isinstance(val,list):
-                        val = " , ".join(val)
-                    widget = self.Patient_FormVariables[col]
+                        val = " , ".join(val) if col not in ["Asistenti","Gostujući Specijalizant"] else ",\n".join(val)
+                    for table in self.Patient_FormVariables.keys():
+                        try:
+                            widget = self.Patient_FormVariables[table][col]
+                            break
+                        except KeyError:
+                            continue
                     report += f"{col}\n  - {val}\n"
+                    
                     self.set_widget_value(widget,val)
             else:
-                Messagebox.show_info(parent=self.MessageBoxParent ,title="Fill From Image", message=report)
-
+                retry = Messagebox.show_question(parent=self.MessageBoxParent ,title="Fill From Image", message=report,
+                                         buttons=["Retry:secondary","Ok:primary"])
+                if retry == 'Retry':
+                    reply = Media.Image_Reader_TryAgain(self.MessageBoxParent)
+                    if reply=='Run':
+                        self.FillForm_FromImage(firsttry=False)
         except queue.Empty:
             self.ROOT.after(100, self.Image_Read, result_queue)
 
     #@method_efficency
     #@error_catcher
-    def FillForm_FromImage(self):
-        slika = self.Patient_FormVariables['Slike'].item(self.Patient_FormVariables['Slike'].focus())['values'][1].split('_')
+    def FillForm_FromImage(self,firsttry=True):
+        try:
+            slika = self.Patient_FormVariables['slike']['Slike'].item(
+                    self.Patient_FormVariables['slike']['Slike'].focus()
+                    )['values'][1].split('_')
+        except IndexError:
+            Messagebox.show_error(parent=self.MessageBoxParent,
+                    title=f"Fill From Image", message="No image selected!")
+            return
         if 'Operaciona' in slika[2]:
             GoogleID = self.DB.execute_selectquery(f"SELECT image_data FROM slike WHERE id_slike = {slika[0]}")[0][0]
             image_blob = self.GD.download_BLOB(GoogleID)
 
             result_queue = queue.Queue()
             def execute_fullscreen():
+                Media.open_image(event=None,image_data=image_blob)
                 self.Show_Image_FullScreen(BLOB=image_blob)
-            def image_reader_with_queue(image_blob, queue):
-                data = Media.Image_Reader(image_blob)
-                queue.put(data) 
-            t1 = threading.Thread(target=execute_fullscreen)
-            t2 = threading.Thread(target=image_reader_with_queue, args=(image_blob,result_queue))
-            t3 = threading.Thread()
-            t1.start()
-            t2.start()
-            
-            self.Image_Read(result_queue)
-        
+            def image_reader_with_queue(image, queue):
+                data = Media.Image_Reader(image)
+                queue.put(data)
 
-    def validate_dg(self,x) -> bool:
+            if firsttry is True:
+                t1 = threading.Thread(target=execute_fullscreen)
+                t1.start()
+            t2 = threading.Thread(target=image_reader_with_queue, args=(image_blob,result_queue))
+            t2.start()
+            self.Image_Read(result_queue)
+        else:
+            Messagebox.show_error(parent=self.MessageBoxParent,
+                title=f"Fill From Image", message="Image description (Opis)\nhave to be 'Operaciona Lista'")
+
+    def Validation_Method(self,event):
+        for widget in self.Validation_Widgets:
+            widget:Widget
+            widget.focus_force()
+        for col,widget in self.Patient_FormVariables['pacijenti'].items():
+            if 'Datum' in col:
+                if widget:
+                    value = self.get_widget_value(widget)
+                    if value:
+                        try:
+                            datetime.strptime(value, "%d-%b-%Y")
+                            widget.configure(bootstyle='primary')
+                            self.Valid_Datum = True
+                        except:
+                            widget.configure(bootstyle='danger')
+                            self.Valid_Datum = False
+                    else:
+                        widget.configure(bootstyle='primary')
+                        self.Valid_Datum = True
+        event.widget.focus_force()
+
+    def validate_notblank(self,x) -> bool:
+        if x:
+            self.Valid_NotBlank = True
+            return True
+        else:
+            self.Valid_NotBlank = False
+            return False        
+
+    def validate_godiste(self,x) -> bool:
+        if x.isdigit() and len(x)==4:
+            self.Valid_Godiste = True
+            return True
+        else:
+            self.Valid_Godiste = False
+            return False
+
+    def validate_dijagnoza(self,x) -> bool:
         if ',' in x:
             mkb = x.split(',')
             for i in mkb:
                 fix = i.strip()
                 if fix not in self.MKB_all:
-                    self.ValidationState = False
+                    self.Valid_Dijagnoza = False
                     return False
             else:
-                self.ValidationState = True
+                self.Valid_Dijagnoza = True
                 return True
         elif x.strip() in self.MKB_all or x=="":
-            self.ValidationState = True
+            self.Valid_Dijagnoza = True
             return True
         else:
-            self.ValidationState = False
+            self.Valid_Dijagnoza = False
             return False
+            
 
 class DBMS(Singleton):
     _initialized = False
@@ -415,10 +541,10 @@ class DBMS(Singleton):
             self.Table_Session: tb.ttk.Treeview = None
             self.Settings_Tab = None
             
-            self.TablePacijenti_Columns = tuple(['ID']+self.DB.patient[:5]+self.DB.diagnose+self.DB.patient[5:]+self.DB.operation)
+            self.TablePacijenti_Columns = tuple(['ID']+self.DB.pacijenti[:5]+self.DB.pacijenti_dijagnoza+self.DB.pacijenti[5:]+self.DB.operaciona_lista)
             self.Pacijenti_ColumnVars = {column: IntVar() for column in self.TablePacijenti_Columns}
 
-            self.TableMKB_Columns = tuple(['ID']+self.DB.MKB)
+            self.TableMKB_Columns = tuple(['ID']+self.DB.mkb10)
             self.MKB_ColumnVars = {column: IntVar() for column in self.TableMKB_Columns}
             self.buttons.MKB_all = [i[0] for i in self.DB.execute_select("mkb10 2010",*("MKB - šifra",))]
 
@@ -489,14 +615,9 @@ class DBMS(Singleton):
                     else v.grid_remove() if k[-1]==str(n) else None
 
     def fill_TablePacijenti(self,table):
-        def is_date(date_string):
-            try:
-                datetime.strptime(str(date_string), '%Y-%m-%d')
-                return True
-            except ValueError:
-                return False
         for i, row in enumerate(table):
-            formatted_row = [i+1] + [self.buttons.format_date(cell,"%Y-%m-%d","%d-%b-%y") if is_date(cell) \
+            # FROM DB Date Format TO Table Date Format
+            formatted_row = [i+1] + [datetime.strptime(cell,"%Y-%m-%d").strftime("%d-%b-%y") if self.buttons.is_DB_date(cell) \
                                         else " , ".join(cell.split(",")) if isinstance(cell,str) and "," in cell \
                                             else "" if str(cell)=="None" \
                                                 else cell for cell in row[1:]]
@@ -517,7 +638,7 @@ class DBMS(Singleton):
                 self.buttons.Table_Slike.insert('', END, values=formatted_row)
 
     def LoggingData(self,result,query_type):
-        Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.{datetime.now().strftime("%f")[0]}' 
+        Time = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.{datetime.now().strftime("%f")[:3]}' 
         if result:
             def execute():
                 self.DB.execute_Insert('logs',**{'ID Time':Time, 'Email':self.GD.UserSession['User'],
@@ -597,8 +718,9 @@ class DBMS(Singleton):
 
                 if search_type == 'od-do':
                     if 'Datum' in option:
-                        searching[option].add((self.buttons.format_date(self.Search_Bar_ENTRIES[f'date_from_{n}'].entry.get(),"%d-%b-%y","%Y-%m-%d"),
-                                            self.buttons.format_date(self.Search_Bar_ENTRIES[f'date_to_{n}'].entry.get(),"%d-%b-%y","%Y-%m-%d")))
+                        # FROM Form Date Formate TO DB Date Format
+                        searching[option].add(datetime.strptime(self.Search_Bar_ENTRIES[f'date_from_{n}'].entry.get(),"%d-%b-%Y").strftime("%Y-%m-%d"),
+                                            datetime.strptime(self.Search_Bar_ENTRIES[f'date_to_{n}'].entry.get(),"%d-%b-%Y").strftime("%Y-%m-%d"))
                     else:
                         searching[option].add((self.Search_Bar_ENTRIES[f'from_{n}'].get(),self.Search_Bar_ENTRIES[f'to_{n}'].get()))
                 elif search_type == '=':
@@ -696,7 +818,8 @@ class DBMS(Singleton):
             self.Table_Pacijenti.delete(item)
         if view and len(view)!=0:
             for i, row in enumerate(view):
-                formatted_row = [i+1] + [self.buttons.format_date(cell,"%Y-%m-%d","%d-%b-%y") if isinstance(cell, date) \
+                # FROM DB Date Formate TO Table Date Format
+                formatted_row = [i+1] + [datetime.strptime(cell,"%Y-%m-%d").strftime("%d-%b-%y") if isinstance(cell, date) \
                                          else "" if str(cell)=="None" \
                                             else cell for cell in row[1:]]
                 self.PatientTable_IDs.append(row[0])
@@ -712,7 +835,27 @@ class DBMS(Singleton):
             for col,val in zip(headings,row):
                 self.buttons.MKB_FormVariables[col].set(val)
         except IndexError:
-            print("Error")
+            return
+    
+
+    def MKB_double_click(self, event):
+        if event.state & 0x0004:  # Control key is pressed
+            self.add_MKB_DgForm(event, 'Dg Sporedna')
+        elif event.state & 0x0100:  # Command key is pressed (on Mac)
+            self.add_MKB_DgForm(event, 'Dg Sporedna')
+        else:
+            self.add_MKB_DgForm(event, 'Dg Glavna')
+
+    def add_MKB_DgForm(self, event, column):
+        try:
+            mkb = self.Table_MKB.item(self.Table_MKB.focus())['values'][1]
+            dg_Widget = self.buttons.Patient_FormVariables['pacijenti dijagnoza'][column]
+            dg_Value = self.buttons.get_widget_value(dg_Widget)
+            if not dg_Value:
+                self.buttons.set_widget_value(dg_Widget,mkb)
+            else:
+                self.buttons.set_widget_value(dg_Widget,f"{dg_Value} , {mkb}")
+        except IndexError:
             return
     
     #@method_efficency
@@ -727,17 +870,25 @@ class DBMS(Singleton):
         except IndexError:
             return
         for col,val in patient.items():
-            try:
-                widget = self.buttons.Patient_FormVariables[col]
-            except KeyError:
+            for table in self.buttons.Patient_FormVariables.keys():
+                try:
+                    widget = self.buttons.Patient_FormVariables[table][col]
+                    break
+                except KeyError:
+                    continue
+            else:
                 continue
             if isinstance(val,str) and "," in val:
-                fix = val.split(",")
-                val = " , ".join(fix)
+                val = val.split(",")
+                fix = []
+                for v in val:
+                    fix.append(v.strip())
+                val = " , ".join(fix) if col not in ["Asistenti","Gostujući Specijalizant"] else ",\n".join(fix)
             self.buttons.set_widget_value(widget,val)
         TEXT = f"{patient["Ime"]} {patient["Prezime"]} "
         try:
-            TEXT += f"({self.buttons.format_date(patient['Datum Prijema'],"%Y-%m-%d","%d-%b-%y")})"
+            # FROM DB Date Formate TO Patient print Date Format
+            TEXT += f"({datetime.strptime(patient['Datum Prijema'],"%Y-%m-%d").strftime("%d-%b-%y")})"
         except KeyError:
             pass
         self.buttons.PatientInfo.config(text=TEXT)
