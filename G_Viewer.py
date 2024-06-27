@@ -58,7 +58,7 @@ class FormFrame:
         FormFrame.AlternativeForm_button_fun = [self.BUTT.Add_Image,
                                                 self.BUTT.Update_Image,
                                                 self.BUTT.Delete_Image,
-                                                self.BUTT.FillForm_FromImage]
+                                                self.BUTT.Fill_FromImage]
 
         self.valid_notblank = root.register(self.BUTT.validate_notblank)
         self.valid_dijagnoza = root.register(self.BUTT.validate_dijagnoza)
@@ -614,37 +614,33 @@ class GUI:
     
     def Buttons_Decorating(self):
         for name, method in inspect.getmembers(Buttons, predicate=inspect.isfunction):
-            #for i in ["Add","Update","Delete","Show_Image","Fill"]:
-                #if i in name:
-            print(f"Efficency {name}")
-            decorated_method = method_efficency(self.GD.UserSession)(
-            error_catcher(self.DB)(method)
-            )
-            setattr(self.BUTT, name, decorated_method.__get__(self.BUTT, type(self.BUTT)))
-            #break
-            '''
+            for i in ["Add","Update","Delete","Show_Image","Fill"]:
+                if i in name:
+                    print(f"Efficency {name}")
+                    decorated_method = method_efficency(self.GD.UserSession)(
+                    error_catcher(self.DB)(method)
+                    )
+                    setattr(self.BUTT, name, decorated_method.__get__(self.BUTT, type(self.BUTT)))
+                    break
             else:
                 print(f"Error {name}")
                 decorated_method = error_catcher(self.DB)(method)
                 setattr(self.BUTT, name, decorated_method.__get__(self.BUTT, type(self.BUTT)))
-                #'''
 
     def DBMS_Decorating(self):
         for name, method in inspect.getmembers(DBMS, predicate=inspect.isfunction):
-            #for i in ["data","tab","Form"]:
-                #if i in name:
-            print(f"Efficency {name}")
-            decorated_method = method_efficency(self.GD.UserSession)(
-                error_catcher(self.DB)(method)
-            )
-            setattr(self.DBMS, name, decorated_method.__get__(self.DBMS, type(self.DBMS)))
-            #break
-            '''
+            for i in ["data","tab","Form"]:
+                if i in name:
+                    print(f"Efficency {name}")
+                    decorated_method = method_efficency(self.GD.UserSession)(
+                        error_catcher(self.DB)(method)
+                    )
+                    setattr(self.DBMS, name, decorated_method.__get__(self.DBMS, type(self.DBMS)))
+                    break
             else:
                 print(f"Error {name}")
                 decorated_method = error_catcher(self.DB)(method)
                 setattr(self.DBMS, name, decorated_method.__get__(self.DBMS, type(self.DBMS)))
-                #'''
 
     def Buttons_SpamStopper(self):
         for button in self.BUTT.Buttons.values():

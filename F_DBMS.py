@@ -74,7 +74,7 @@ class Buttons(Singleton):
         if not value:
             return
         if self.is_DB_date(value):
-            # DB Date Format TO Form Date Format
+            # From DB Date Format TO Form Date Format
             value = datetime.strptime(str(value),"%Y-%m-%d").strftime("%d-%b-%Y")
         if isinstance(widget, StringVar):
             widget.set(value)
@@ -103,7 +103,7 @@ class Buttons(Singleton):
     def Add_Patient(self):
         if not (self.Valid_Dijagnoza and self.Valid_Datum and self.Valid_Godiste and self.Valid_NotBlank):
             Messagebox.show_warning(parent=self.MessageBoxParent,
-                                    title=f"Inserting failed!", message="Wrong data in Patient Form")
+                        title=f"Inserting failed!", message="Wrong data in Patient Form")
             return
         reportDict = {}
         for table in self.Patient_FormVariables.keys():
@@ -151,7 +151,8 @@ class Buttons(Singleton):
                 insertDict["id_pacijent"] = ID
                 self.DB.execute_Insert(table,**insertDict)
         report = ""
-        for col,val in reportDict.values():
+        print(reportDict)
+        for col,val in reportDict.items():
             report += f"{col}: {val}\n"
         Messagebox.show_info(parent=self.MessageBoxParent,
                     title=f"New Patient added", message=report[:-1], alert=True)
@@ -173,15 +174,19 @@ class Buttons(Singleton):
                                     title=f"Inserting failed!", message="Niste uneli sve tražene podatke")
     
     def Update_Patient(self):
-        patient = self.DB.get_patient_data(self.PatientFocus_ID)
-        ID_PATIENT = ('id_pacijent',self.PatientFocus_ID)
-        update_Dict = {}
-        insert_Dict = {}
-        delete_Dict = {}
+        if not (self.Valid_Dijagnoza and self.Valid_Datum and self.Valid_Godiste and self.Valid_NotBlank):
+            report = "You have entered incorrect data.\nUpdate failed !!!"
+            Messagebox.show_error(parent=self.MessageBoxParent ,title="Updating...", message=report)
+            return
+        if self.PatientFocus_ID:    
+            patient = self.DB.get_patient_data(self.PatientFocus_ID)
+            ID_PATIENT = ('id_pacijent',self.PatientFocus_ID)
+            update_Dict = {}
+            insert_Dict = {}
+            delete_Dict = {}
 
-        report_Dict = {}
- 
-        if patient:
+            report_Dict = {}
+
             PATIENT = f"{patient['Ime']} {patient['Prezime']}"
             try:
                 # FROM DB Date Formate TO Patient Report Date Format
@@ -193,57 +198,63 @@ class Buttons(Singleton):
             for table,tabledict in self.Patient_FormVariables.items():
                 if table == 'slike':
                     continue
+                update_Dict[table] = {}
+                insert_Dict[table] = {}
                 delete_Dict[table] = {}
                 for col,widget in tabledict.items():
                     try:
                         OLD = patient[col]
-                        if table=='pacijent' and 'Datum' in col:
+                        if table=='pacijenti' and 'Datum' in col:
+                            # FROM DB Date Format TO Form Date Format
                             OLD = datetime.strptime(OLD,"%Y-%m-%d").strftime("%d-%b-%Y")
                     except KeyError:
                         OLD = ""
-                    
                     NEW = self.get_widget_value(widget)
 
-                    NEW = ' '.join(str(NEW).split()) # da se srede visak razmaka
-                    OLD = ' '.join(str(OLD).split()) # mora str zbog int values
+                    NEW = ' '.join(NEW.split()) # da se srede visak razmaka
+                    OLD = ' '.join(OLD.split()) # mora str zbog int values
+                    NEW = ' , '.join([i.strip() for i in NEW.split(',')]) # da se srede visak razmaka
+                    OLD = ' , '.join([i.strip() for i in OLD.split(',')]) # mora str zbog int values
                     if NEW!=OLD:
                         report_Dict[col] = {"New":NEW,"Old":OLD}
                         if table=='pacijenti dijagnoza':
-                            old = [i.strip() for i in OLD.split(',')]
-                            new = [i.strip() for i in NEW.split(',')]
-                            INSERT = set(new)-set(old) ; INSERT.remove("")
-                            DELETE = set(old)-set(new) ; DELETE.remove("")
+                            old = OLD.split(' , ')
+                            new = NEW.split(' , ')
+                            INSERT = set(new)-set(old) ; INSERT.remove("") if "" in INSERT else None
+                            DELETE = set(old)-set(new) ; DELETE.remove("") if "" in DELETE else None
                             if DELETE:
                                 delete_Dict[table][col] = DELETE
                             if INSERT:
                                 insert_Dict[table][col] = INSERT
                         elif table=='operaciona lista':
                             NEW = " , ".join([i.strip() for i in NEW.split(',')])
-                            if OLD:
+                            old_exists = self.DB.execute_selectquery(f"SELECT 1 FROM `operaciona lista` WHERE id_pacijent = {self.PatientFocus_ID}")
+                            print(old_exists)
+                            if old_exists:
                                 update_Dict[table][col] = NEW
                             else:
                                 insert_Dict[table][col] = NEW
                         else: # Table pacijenti
+                            if 'Datum' in col:
+                                # FROM Form Date Format TO DB Date Format
+                                NEW = datetime.strptime(NEW,"%d-%b-%Y").strftime("%Y-%m-%d")
                             if OLD:
                                 update_Dict[table][col] = NEW
                             else:
                                 insert_Dict[table][col] = NEW
 
-                if report_Dict:
-                    if (self.Valid_Dijagnoza and self.Valid_Datum and self.Valid_Godiste and self.Valid_NotBlank):
-                        report = f"{PATIENT}\n"
-                        for k,v in report_Dict.items():
-                            report += f"{k}"
-                            report += f"\n  New: {v['New']}\n"
-                            if v['Old']:
-                                report += f"  Old: {v["Old"]}\n"
-                        else:
-                            confirmation = Messagebox.yesno(parent=self.MessageBoxParent,
-                                            title=f"Do You Want to Process Update?", message=report[:-1], alert=True)
-                    else:
-                        report = "You have entered incorrect data.\nUpdate failed !!!"
+            if report_Dict:
+                report = f"{PATIENT}\n"
+                for k,v in report_Dict.items():
+                    report += f"{k}"
+                    report += f"\n  New: {v['New']}\n"
+                    if v['Old']:
+                        report += f"  Old: {v["Old"]}\n"
                 else:
-                    report = "You made no changes to current patient.\nUpdate failed !!!"
+                    confirmation = Messagebox.yesno(parent=self.MessageBoxParent,
+                            title=f"Do You Want to Process Update?", message=report[:-1], alert=True)
+            else:
+                report = "You made no changes to current patient.\nUpdate failed !!!"
         else:
             report = "You didn't select Patient.\nUpdate failed !!!"
 
@@ -258,7 +269,7 @@ class Buttons(Singleton):
             else:
                 print("NONE")
         except UnboundLocalError:
-            Messagebox.show_error(parent=self.MessageBoxParent ,title="Update failed!", message=report)
+            Messagebox.show_error(parent=self.MessageBoxParent ,title="Updating...", message=report)
     
     def Update_MKB(self):
         updateDict = {}
@@ -430,13 +441,13 @@ class Buttons(Singleton):
                 if retry == 'Retry':
                     reply = Media.Image_Reader_TryAgain(self.MessageBoxParent)
                     if reply=='Run':
-                        self.FillForm_FromImage(firsttry=False)
+                        self.Fill_FromImage(firsttry=False)
         except queue.Empty:
             self.ROOT.after(100, self.Image_Read, result_queue)
 
     #@method_efficency
     #@error_catcher
-    def FillForm_FromImage(self,firsttry=True):
+    def Fill_FromImage(self,firsttry=True):
         try:
             slika = self.Patient_FormVariables['slike']['Slike'].item(
                     self.Patient_FormVariables['slike']['Slike'].focus()
@@ -451,7 +462,6 @@ class Buttons(Singleton):
 
             result_queue = queue.Queue()
             def execute_fullscreen():
-                Media.open_image(event=None,image_data=image_blob)
                 self.Show_Image_FullScreen(BLOB=image_blob)
             def image_reader_with_queue(image, queue):
                 data = Media.Image_Reader(image)
@@ -468,6 +478,12 @@ class Buttons(Singleton):
                 title=f"Fill From Image", message="Image description (Opis)\nhave to be 'Operaciona Lista'")
 
     def Validation_Method(self,event):
+        # Sve postavljamo na True da bi cim jedna kolona je False prebaci u False i vise ne vraca na True
+        # Problem se javlja sto stalno zadnja kolona koja radi funkciju provere odlucuje da li je True ili False a treba sve kolone
+        self.Valid_Datum = True
+        self.Valid_Godiste = True
+        self.Valid_Dijagnoza = True
+        self.Valid_NotBlank = True
         for widget in self.Validation_Widgets:
             widget:Widget
             widget.focus_force()
@@ -479,18 +495,15 @@ class Buttons(Singleton):
                         try:
                             datetime.strptime(value, "%d-%b-%Y")
                             widget.configure(bootstyle='primary')
-                            self.Valid_Datum = True
                         except:
                             widget.configure(bootstyle='danger')
                             self.Valid_Datum = False
                     else:
                         widget.configure(bootstyle='primary')
-                        self.Valid_Datum = True
         event.widget.focus_force()
 
     def validate_notblank(self,x) -> bool:
         if x:
-            self.Valid_NotBlank = True
             return True
         else:
             self.Valid_NotBlank = False
@@ -498,7 +511,6 @@ class Buttons(Singleton):
 
     def validate_godiste(self,x) -> bool:
         if x.isdigit() and len(x)==4:
-            self.Valid_Godiste = True
             return True
         else:
             self.Valid_Godiste = False
@@ -513,10 +525,8 @@ class Buttons(Singleton):
                     self.Valid_Dijagnoza = False
                     return False
             else:
-                self.Valid_Dijagnoza = True
                 return True
         elif x.strip() in self.MKB_all or x=="":
-            self.Valid_Dijagnoza = True
             return True
         else:
             self.Valid_Dijagnoza = False
