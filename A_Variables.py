@@ -43,8 +43,8 @@ from tkinter.font import nametofont
 import threading
 from ttkbootstrap.style import Colors
 
-WIDTH = 1782
-HEIGHT = 927
+WIDTH = 1720
+HEIGHT = 930
 
 FONT = "Montserrat"
 F_SIZE = 11
@@ -88,7 +88,7 @@ bd_inner_frame = 3
 #  >>> FORM <<<
 form_small_width = 7
 form_medium_width = 18
-form_large_width = 25
+form_large_width = 22
 form_date_width = 13
 
 form_butt_width = 80
@@ -104,38 +104,37 @@ search_butt_width = 10
 title_ImgData = ("C:/Users/vurun/Desktop/App/GodHand_Transparent_smallest.png",0.007,0.033)
 
 form_name = "Pacijent"
-form_groups = {"Default": {"start":4,"Dijagnoza":3, "Hospitalizacija":None},"Alternative": {"start":1,"Doktori":6,"Slike":None}}
+form_groups = {"Default": {"start":4,"Dijagnoza":5, "Hospitalizacija":None},"Alternative": {"start":1,"Doktori":6,"Slike":None}}
 
 default_form_entry = { "Ime": ("Ime", 'Validate', form_medium_width),
                     "Prezime": ("Prezime", 'Validate', form_medium_width),
                     "Godište": ("Godište", 'Validate', form_small_width),
                     "Pol": ("Pol", 'Combobox', form_small_width, ("Muško", "Žensko")),
-                    "Dg Glavna": ("Glavna", 'Validate', form_large_width),
-                    "Dg Sporedna": ("Sporedna", 'Validate', form_large_width),
-                    "Dg Latinski": ("Latin", 'Text', form_large_width),
+                    "Uputna dijagnoza": ("Uputna\nDijagnoza", 'Validate', form_large_width),
+                    "Glavna Operativna dijagnoza": ("Glavna\nOperativna", 'Validate', form_large_width),
+                    "Sporedna Operativna dijagnoza": ("Sporedna\nOperativna", 'Validate', form_large_width),
+                    "Prateća dijagnoza": ("Prateća\nDijagnoza", 'Validate', form_large_width),
+                    "Dg Latinski": ("Dg Latin", 'Text', form_large_width),
+                    "Osnovni Uzrok Hospitalizacije": ("Osnovni Uzrok\nHospitalizacije", 'Validate', form_medium_width),
                     "Datum Prijema": ("Prijem", 'DateEntry', form_date_width),
                     "Datum Operacije": ("Operacija", 'DateEntry', form_date_width),
                     "Datum Otpusta": ("Otpust", 'DateEntry', form_date_width)        }
 
 alternative_form_entry = {  "Patient Info":("","Info"),
-                            "Operator": ("Operator", 'StringVar', form_large_width-4),
-                            "Asistenti": ("Asistenti", 'Text', form_large_width-4),
-                            "Anesteziolog": ("Anesteziolog", 'StringVar', form_large_width-4),
-                            "Anestetičar": ("Anestetičar", 'StringVar', form_large_width-4),
-                            "Instrumentarka": ("Instrumentarka", 'StringVar', form_large_width-4),
-                            "Gostujući Specijalizant": ("Gostujući\nSpecijalizant", 'Text', form_large_width-4),
+                            "Operator": ("Operator", 'StringVar', form_large_width),
+                            "Asistenti": ("Asistenti", 'Text', form_large_width),
+                            "Anesteziolog": ("Anesteziolog", 'StringVar', form_large_width),
+                            "Anestetičar": ("Anestetičar", 'StringVar', form_large_width),
+                            "Instrumentarka": ("Instrumentarka", 'StringVar', form_large_width),
+                            "Gostujući Specijalizant": ("Gostujući\nSpecijalizant", 'Text', form_large_width),
                             "Slike":("","Slike"),
                             "Opis":("Opis","StringVar",form_large_width-4) }
 
-default_form_buttons = [("ADD",None),
-                        ("UPDATE",None),
-                        ("DELETE","danger"),
-                        ("CLEAR\nFORM","warning")]
-
-alternative_form_buttons = [("ADD\nIMAGE",None),
-                            ("UPDATE\nIMAGE",None),
-                            ("DELETE\nIMAGE",'danger'),
-                            ("FILL FROM\nIMAGE",'info')]
+form_buttons = [("ADD",None),
+                ("UPDATE",None),
+                ("DELETE","danger"),
+                ("FILL FROM\nIMAGE",'info'),
+                ("CLEAR\nFORM","warning")  ]
 
 MKB_Entry = {"MKB - šifra":("MKB",7),
              "Opis Dijagnoze":("Opis\nDijagnoze",60),
@@ -154,7 +153,8 @@ ThemeColors_Dict = {}
 
 GD_Slike_folder = ['1e-KyYcDIt_V2Gn79blz0gESZLpeV4xVn']
 GD_RHMH_folder = ['1ybEVItyB75BParYUN2-ab_oVe2tBj1NW']
-RHMH_DB = {'id':'1cwOFgPjVRhj6qQ9335RJVdkUkBhSvcJ8','mime':'application/x-sqlite3'}
+RHMH_DB_old = {'id':'1cwOFgPjVRhj6qQ9335RJVdkUkBhSvcJ8','mime':'application/x-sqlite3'}
+RHMH_DB = {'id':'1vLJxgeqXMXfqGE_PTrtywdL69TPZDjhw','mime':'application/x-sqlite3'}
 
 MIME = {'PNG' : 'image/png',
         'HEIF' : 'image/heif',

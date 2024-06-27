@@ -31,10 +31,10 @@ class Database:
         self.lock = threading.Lock()
 
         # KOLONE TABELA
-        self.mkb10 = self.show_columns('mkb10 2010')[1:]        
-        self.pacijenti = self.show_columns('pacijenti')[1:]
-        self.pacijenti_dijagnoza = self.show_columns('pacijenti dijagnoza')[-2:]
-        self.operaciona_lista = self.show_columns('operaciona lista')[1:]
+        self.mkb10 = self.show_columns('mkb10')[1:]        
+        self.pacijent = self.show_columns('pacijent')[1:]
+        self.dg_kategorija = [i[0] for i in self.execute_selectquery("SELECT Kategorija from kategorija")]
+        self.dr_funkcija = [i[0] for i in self.execute_selectquery("SELECT Funkcija from funkcija")]
         self.slike = self.show_columns('slike')[2:-1]
         self.logs = self.show_columns('logs')[:-2]
         self.session = self.show_columns('session')[1:]
@@ -85,16 +85,14 @@ class Database:
         if isinstance(value,tuple) and len(value)==2:
             return f"( {col} BETWEEN '{value[0]}' AND '{value[1]}' ) {andor} "
         elif isinstance(value,tuple) and len(value)==1:
-            if col in self.pacijenti_dijagnoza:
-                return f"( `mkb10 2010`.`MKB - šifra` LIKE '%{value[0]}%' AND {col} = 1 ) {andor} "
+            if col in self.dg_kategorija:
+                kategorija = self.execute_selectquery(f"SELECT id_kategorija from kategorija WHERE Kategorija = '{col}'")[0]
+                return f"( mkb10.`MKB - šifra` LIKE '%{value[0]}%' AND dijagnoza.id_kategorija = {kategorija} ) {andor} "
             else:
                 return f"{col} LIKE '%{value[0]}%' {andor} "
         else:
             return f"{col}='{value}' {andor} "
-        
-
-    #@method_efficency
-    #@error_catcher  
+         
     def execute_selectquery(self,query):
         with self.lock:
             try:
@@ -106,125 +104,138 @@ class Database:
             finally:
                 self.close_connection()
 
-    #@method_efficency
-    #@error_catcher
     def execute_select(self, table, *args, **kwargs):
-        with self.lock:
-            print("KWARGS")
-            try:
-                self.connect()
-                table = f"`{table}`" if " " in table else table       
-                select_values = ",".join(f"`{a}`" if ' ' in a else a for a in args)
-                where_pairs = ""
-  
-                for k,v in kwargs.items():
-                    if v:
-                        col = f"`{k}`" if ' ' in k else k
-                        if isinstance(v,set):
-                            where_pairs += "( "
-                            for val in v:
-                                where_pairs += self.creating_where_part(col,val,"OR")
-                            where_pairs = where_pairs.rstrip(' OR ') + " ) AND "
-                        else:
-                            where_pairs += self.creating_where_part(col,v,"AND")
-                where_pairs = where_pairs.rstrip(" AND ")
-                
-                query = f"SELECT {select_values} FROM {table}"
-                if where_pairs:
-                    print(where_pairs)
-                    query += f" WHERE {where_pairs}"
-                
-                if 'FROM pacijenti' in query:
-                    self.PatientQuery = query
+        try:
+            self.lock.acquire()
+            table = f"`{table}`" if " " in table else table       
+            select_values = ",".join(f"`{a}`" if ' ' in a else a for a in args)
+            where_pairs = ""
 
-                self.LoggingQuery = self.format_sql(query)
-                self.cursor.execute(query)
-                view = self.cursor.fetchall()
-                return view
-            finally:
-                self.close_connection()
-
-    #@method_efficency
-    #@error_catcher        
-    def execute_join_select(self, table, *args, **kwargs):
-        with self.lock:
-            try:
-                self.connect()
-                table = f"`{table}`" if " " in table else table
-                select_values = ''
-                joindiagnose = False
-                joinoperation = False
-                for val in args:
-                    TXT = f"`{val}`" if " " in val else val
-                    if val in self.pacijenti_dijagnoza:
-                        joindiagnose = True
-                        select_values += f"GROUP_CONCAT(CASE WHEN `pacijenti dijagnoza`.{TXT}=1 THEN `mkb10 2010`.`MKB - šifra` END) AS {TXT},"
-                    elif val in self.operaciona_lista:
-                        joinoperation = True
-                        select_values += f"`operaciona lista`.{TXT},"
-                    else:
-                        select_values += f"{table}.{TXT},"
-                select_values = select_values.rstrip(",")
-
-                where_pairs = ""
-                    
-                for k,v in kwargs.items():
-                    if 'Dg' in k:
-                        joindiagnose = True
-                    TXT = f"`{k}`" if " " in k else k
-                    if k in self.pacijenti_dijagnoza:
-                        joindiagnose = True
-                        col = f"`pacijenti dijagnoza`.{TXT}"
-                    elif k in self.operaciona_lista:
-                        joinoperation = True
-                        col = f"`operaciona lista`.{TXT}"
-                    else:
-                        col = f"{table}.{TXT}"
-
+            for k,v in kwargs.items():
+                if v:
+                    col = f"`{k}`" if ' ' in k else k
                     if isinstance(v,set):
                         where_pairs += "( "
                         for val in v:
+                            self.lock.release()
                             where_pairs += self.creating_where_part(col,val,"OR")
+                            self.lock.acquire()
                         where_pairs = where_pairs.rstrip(' OR ') + " ) AND "
                     else:
+                        self.lock.release()
                         where_pairs += self.creating_where_part(col,v,"AND")
-                where_pairs = where_pairs.rstrip(" AND ")
+                        self.lock.acquire()
+            where_pairs = where_pairs.rstrip(" AND ")
+            
+            query = f"SELECT {select_values} FROM {table}"
+            if where_pairs:
+                print(where_pairs)
+                query += f" WHERE {where_pairs}"
+            
+            if 'FROM pacijent' in query:
+                self.PatientQuery = query
 
-                join_tables = ""
-                if joindiagnose:
-                    join_tables += f"LEFT JOIN `pacijenti dijagnoza` ON {table}.id_pacijent = `pacijenti dijagnoza`.id_pacijent " + \
-                                    f"LEFT JOIN `mkb10 2010` ON `pacijenti dijagnoza`.id_dijagnoza = `mkb10 2010`.id_dijagnoza "
-                if joinoperation:
-                    join_tables += f"LEFT JOIN `operaciona lista` ON {table}.id_pacijent = `operaciona lista`.id_pacijent "
+            self.LoggingQuery = self.format_sql(query)
 
-                query = f"SELECT {select_values} FROM {table} {join_tables} "
-                if where_pairs:
-                    query += f" WHERE {where_pairs}"
-                query += f" GROUP BY {table}.id_pacijent"
+            self.connect()
+            self.cursor.execute(query)
+            view = self.cursor.fetchall()
+            return view
+        finally:
+            self.close_connection()
+            self.lock.release()
+        
+    def execute_join_select(self, table, *args, **kwargs):
+        try:
+            self.lock.acquire()
+            table = f"`{table}`" if " " in table else table
+            select_values = ''
+            joindiagnose = False
+            joinoperation = False
+            for val in args:
+                TXT = f"`{val}`" if " " in val else val
+                print(val)
+                if val in self.dg_kategorija:
+                    joindiagnose = True
+                    self.lock.release()
+                    kategorija = self.execute_selectquery(f"SELECT id_kategorija from kategorija WHERE Kategorija LIKE '%{val}%'")[0][0]
+                    self.lock.acquire()
+                    select_values += f"GROUP_CONCAT(DISTINCT CASE WHEN dijagnoza.id_kategorija={kategorija} THEN mkb10.`MKB - šifra` END) AS {TXT},"
+                elif val in self.dr_funkcija:
+                    joinoperation = True
+                    self.lock.release()
+                    funkcija = self.execute_selectquery(f"SELECT id_funkcija from funkcija WHERE Funkcija LIKE '%{val}%'")[0][0]
+                    self.lock.acquire()
+                    select_values += f"GROUP_CONCAT(DISTINCT CASE WHEN operacija.id_funkcija={funkcija} THEN zaposleni.Ime END) AS {TXT},"
+                else:
+                    select_values += f"{table}.{TXT},"
+            select_values = select_values.rstrip(",")
 
-                if 'FROM pacijenti' in query:
-                    self.PatientQuery = query
+            where_pairs = ""
+            for k,v in kwargs.items():
+                if 'Dg' in k:
+                    joindiagnose = True
+                TXT = f"`{k}`" if " " in k else k
+                if k in self.dg_kategorija:
+                    joindiagnose = True
+                    col = f"kategorija.{TXT}"
+                elif k in self.dr_funkcija:
+                    joinoperation = True
+                    col = f"funkcija.{TXT}"
+                else:
+                    col = f"{table}.{TXT}"
 
-                self.LoggingQuery = self.format_sql(query)
-                self.cursor.execute(query)
-                view = self.cursor.fetchall()
-                return view
-            finally:
-                self.close_connection()
+                if isinstance(v,set):
+                    where_pairs += "( "
+                    for val in v:
+                        self.lock.release()
+                        where_pairs += self.creating_where_part(col,val,"OR")
+                        self.lock.acquire()
+                    where_pairs = where_pairs.rstrip(' OR ') + " ) AND "
+                else:
+                    self.lock.release()
+                    where_pairs += self.creating_where_part(col,v,"AND")
+                    self.lock.acquire()
+            where_pairs = where_pairs.rstrip(" AND ")
 
-    #@method_efficency
-    #@error_catcher        
+            join_tables = ""
+            if joindiagnose:
+                join_tables += f"LEFT JOIN dijagnoza ON {table}.id_pacijent = dijagnoza.id_pacijent " + \
+                                f"LEFT JOIN mkb10 ON dijagnoza.id_dijagnoza = mkb10.id_dijagnoza " + \
+                                f"LEFT JOIN kategorija ON dijagnoza.id_kategorija = kategorija.id_kategorija "
+                
+            if joinoperation:
+                join_tables += f"LEFT JOIN operacija ON {table}.id_pacijent = operacija.id_pacijent " + \
+                                f"LEFT JOIN funkcija ON operacija.id_funkcija = funkcija.id_funkcija " + \
+                                f"LEFT JOIN zaposleni ON operacija.id_zaposleni = zaposleni.id_zaposleni "
+
+            query = f"SELECT {select_values} FROM {table} {join_tables} "
+            if where_pairs:
+                query += f" WHERE {where_pairs}"
+            query += f" GROUP BY {table}.id_pacijent"
+
+            if 'FROM pacijent' in query:
+                self.PatientQuery = query
+            self.LoggingQuery = self.format_sql(query)
+
+            self.connect()
+            self.cursor.execute(query)
+            view = self.cursor.fetchall()
+            return view
+        finally:
+            self.close_connection()
+            self.lock.release()
+ 
     def execute_filter_select(self,columns):
         with self.lock:
-            if not self.PatientQuery or 'FROM pacijenti' not in self.PatientQuery:
-                return
             try:
-                self.connect()
+                if not self.PatientQuery or 'FROM pacijent' not in self.PatientQuery:
+                    return
                 wherenull = "WHERE "
                 for k,v in columns.items():
                     null = "IS NOT NULL" if v else "IS NULL"
                     txt = f'`{k}`' if ' ' in k else k
-                    wherenull += f"pacijenti.{txt} {null} AND "
+                    wherenull += f"pacijent.{txt} {null} AND "
                 wherenull = wherenull.rstrip(" AND ")
 
                 if 'WHERE' in self.PatientQuery:
@@ -237,61 +248,69 @@ class Database:
                     query = self.PatientQuery+f" {wherenull}"
 
                 self.LoggingQuery = self.format_sql(query)
+            
+                self.connect()
                 self.cursor.execute(query)
                 view = self.cursor.fetchall()
                 return view
             finally:
                 self.close_connection()
 
-    #@method_efficency
-    #@error_catcher
     def get_patient_data(self,ID):
-        with self.lock:
-            try:
-                self.connect()
-                SELECT = ""
-                for col in self.pacijenti:
-                    SELECT += "pacijenti."
-                    SELECT += f"`{col}`, " if " " in col else f"{col}, "
-                for col in self.pacijenti_dijagnoza:
-                    TXT = f"`{col}`" if " " in col else col
-                    SELECT += f"GROUP_CONCAT(DISTINCT CASE WHEN `pacijenti dijagnoza`.{TXT}=1 THEN `mkb10 2010`.`MKB - šifra` END) AS {TXT}, "
-                for col in self.operaciona_lista:
-                    SELECT += "`operaciona lista`."
-                    SELECT += f"`{col}`, " if " " in col else f"{col}, "
-                SELECT += "GROUP_CONCAT(DISTINCT slike.Naziv) AS Slike"
+        try:
+            self.lock.acquire()
+            SELECT = ""
+            for col in self.pacijent:
+                SELECT += "pacijent."
+                SELECT += f"`{col}`, " if " " in col else f"{col}, "
+            for col in self.dg_kategorija:
+                TXT = f"`{col}`" if " " in col else col
+                self.lock.release()
+                kategorija = self.execute_selectquery(f"SELECT id_kategorija from kategorija WHERE Kategorija = '{col}'")[0][0]
+                self.lock.acquire()
+                SELECT += f"GROUP_CONCAT(DISTINCT CASE WHEN dijagnoza.id_kategorija={kategorija} THEN mkb10.`MKB - šifra` END) AS {TXT},"
+            for col in self.dr_funkcija:
+                self.lock.release()
+                funkcija = self.execute_selectquery(f"SELECT id_funkcija from funkcija WHERE Funkcija LIKE '%{col}%'")[0][0]
+                self.lock.acquire()
+                SELECT += f"GROUP_CONCAT(DISTINCT CASE WHEN operacija.id_funkcija={funkcija} THEN zaposleni.Ime END) AS {TXT},"
+            SELECT += "GROUP_CONCAT(DISTINCT slike.Naziv) AS Slike"
 
-                diagnosejoin = f"LEFT JOIN `pacijenti dijagnoza` ON pacijenti.id_pacijent = `pacijenti dijagnoza`.id_pacijent " + \
-                                    f"LEFT JOIN `mkb10 2010` ON `pacijenti dijagnoza`.id_dijagnoza = `mkb10 2010`.id_dijagnoza "
-                operationjoin = f"LEFT JOIN `operaciona lista` ON pacijenti.id_pacijent = `operaciona lista`.id_pacijent "
-                slikejoin = f"LEFT JOIN slike ON pacijenti.id_pacijent = slike.id_pacijent"
-                JOIN = diagnosejoin+operationjoin+slikejoin
 
-                query = f"SELECT {SELECT} FROM pacijenti {JOIN} " + \
-                        f"WHERE pacijenti.id_pacijent = {ID} GROUP BY pacijenti.id_pacijent"
+            diagnosejoin = f"LEFT JOIN dijagnoza ON pacijent.id_pacijent = dijagnoza.id_pacijent " + \
+                                f"LEFT JOIN mkb10 ON dijagnoza.id_dijagnoza = mkb10.id_dijagnoza " + \
+                                f"LEFT JOIN kategorija ON dijagnoza.id_kategorija = kategorija.id_kategorija "
+            operationjoin = f"LEFT JOIN operacija ON pacijent.id_pacijent = operacija.id_pacijent " + \
+                                f"LEFT JOIN funkcija ON operacija.id_funkcija = funkcija.id_funkcija " + \
+                                f"LEFT JOIN zaposleni ON operacija.id_zaposleni = zaposleni.id_zaposleni "
+            slikejoin = f"LEFT JOIN slike ON pacijent.id_pacijent = slike.id_pacijent"
+            JOIN = diagnosejoin+operationjoin+slikejoin
 
-                self.LoggingQuery = self.format_sql(query)
-                self.cursor.execute(query)
-                view = self.cursor.fetchall()
-                column_names = [desc[0] for desc in self.cursor.description]
-                DICTY = {}
-                for col,val in zip(column_names,view[0]):
-                    if val:
-                        if col=='Slike':
-                            if ',' in val:
-                                LIST = val.split(',')
-                                val = []
-                                for i in LIST:
-                                    val.append(i)
-                            else:
-                                val = [val]
-                        DICTY[col] = val
-                return DICTY
-            finally:
-                self.close_connection()
+            query = f"SELECT {SELECT} FROM pacijent {JOIN} " + \
+                    f"WHERE pacijent.id_pacijent = {ID} GROUP BY pacijent.id_pacijent"
 
-    #@method_efficency
-    #@error_catcher        
+            self.LoggingQuery = self.format_sql(query)
+            self.connect()
+            self.cursor.execute(query)
+            view = self.cursor.fetchall()
+            column_names = [desc[0] for desc in self.cursor.description]
+            DICTY = {}
+            for col,val in zip(column_names,view[0]):
+                if val:
+                    if col=='Slike':
+                        if ',' in val:
+                            LIST = val.split(',')
+                            val = []
+                            for i in LIST:
+                                val.append(i)
+                        else:
+                            val = [val]
+                    DICTY[col] = val
+            return DICTY
+        finally:
+            self.close_connection()
+            self.lock.release()
+      
     def execute_Update(self,table,id:tuple,**kwargs):
         with self.lock:
             try:
@@ -319,8 +338,6 @@ class Database:
             finally:
                 self.close_connection()
     
-    #@method_efficency
-    #@error_catcher
     def execute_Insert(self,table,**kwargs):
         with self.lock:
             try:
@@ -352,8 +369,6 @@ class Database:
             finally:
                 self.close_connection()
     
-    #@method_efficency
-    #@error_catcher
     def execute_Delete(self,table,id):
         with self.lock:
             try:
@@ -368,8 +383,6 @@ class Database:
             finally:
                 self.close_connection()
 
-    #@method_efficency
-    #@error_catcher
     #'''
     def get_imageBlob(self,id):
         with self.lock:
@@ -395,19 +408,8 @@ class Database:
 
 if __name__=='__main__':
     rhmh = Database('RHMH.db')
-
-    table = rhmh.execute_selectquery("SELECT * from pacijenti")
-    for i,v in enumerate(table[-10:]):
-        print(v)
-
-    table = rhmh.execute_selectquery("SELECT * from `pacijenti dijagnoza`")
-    for i,v in enumerate(table[-10:]):
-        print(v)
-
-    table = rhmh.execute_selectquery("SELECT * from slike")
-    for i,v in enumerate(table[-10:]):
-        print(v)
-
-    table = rhmh.execute_selectquery("SELECT * from `operaciona lista`")
-    for i,v in enumerate(table[-10:]):
-        print(v)
+    columns = ['id_pacijent', 'Ime', 'Prezime', 'Starost', 'Godište', 'Pol',
+               'Uputna dijagnoza', 'Osnovni Uzrok Hospitalizacije', 'Glavna Operativna dijagnoza', 'Sporedna Operativna dijagnoza', 'Prateća dijagnoza', 'Dg Latinski',
+               'Datum Prijema', 'Datum Operacije', 'Datum Otpusta',
+               'Operator', 'Asistent', 'Anesteziolog', 'Anestetičar', 'Instrumentarka', 'Gostujući Specijalizant']
+    #rhmh.execute_join_select("pacijent",*(['id_pacijent']+columns))

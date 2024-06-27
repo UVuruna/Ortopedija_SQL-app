@@ -4,7 +4,7 @@ pillow_heif.register_heif_opener()
 class Media:
     ReaderSetting = easyocr.Reader(['rs_latin','en'])
     Image_Reader_Zoom: float = 1.13
-    Image_Reader_RAM: int = 2048
+    Image_Reader_RAM: int = 12000
 
     Slike_Viewer: Canvas = None
     Image_Active: Image.Image = None
@@ -237,6 +237,58 @@ class Media:
                                         OUTPUT[doctorType].append(doctors)
                                 elif not OUTPUT[doctorType]:
                                     OUTPUT[doctorType] = [doctors]
+        return OUTPUT
+
+    @staticmethod
+    def Image_Reader_Light(image):
+        result = Media.ReaderSetting.readtext(image, detail=0, mag_ratio=Media.Image_Reader_Zoom, batch_size=Media.Image_Reader_RAM)
+
+        def extend_variable(i, variable, searchlist, image_text):
+            j = i + 1
+            while j < len(image_text) and not any((image_text[j]).startswith(prefix) for prefix in searchlist):
+                variable += (" " + image_text[j])
+                j += 1
+            return variable
+
+        OUTPUT = {  "Operator": list(),
+                    "Asistent": list(),
+                    "Anesteziolog": list(),
+                    "Anestetičar": list(),
+                    "Instrumentarka": list(),
+                    "Gostujući Specijalizant":list()   }
+        DoctorsImage_dict = {"Operator":("Operator",["Operator"]),
+                             "Asist":("Asistent",["Asistent 1","Asistent 2","Asistent 3","Asistent"]),
+                            "Anestezio":("Anesteziolog",["Anesteziolog"]),
+                            "Anestet":("Anestetičar",["Anestetičar","Anesteticar"]),
+                            "Instru":("Instrumentarka",["Instrumentarka","Instrumentar"]),
+                            "Gostuju": ("Gostujući Specijalizant",["Gostujući specijalizant","Gostujuci specijalizant"])}
+
+        for i, detection in enumerate(result):
+            detection:str
+            for prefix,(doctorType,fixlist) in DoctorsImage_dict.items():
+                if detection.capitalize().startswith(prefix):
+                    doctors: str
+                    doctors = extend_variable(i, detection, list(DoctorsImage_dict.keys())+["Preme","Anest"], result)
+                    for fix in fixlist+['-','_',',','.',':',';']:
+                        doctors = doctors.replace(fix," ")
+                    doctors = " ".join(doctors.split())
+                    if prefix == 'Gostuju':
+                        DOCTORS = []
+                        doctors = doctors.split()
+                        for i,doc in enumerate(doctors):
+                            if doc in ['Dr','dr']:
+                                DOCTORS.append(" ".join(doctors[i:i+3]))
+                        OUTPUT[doctorType] += DOCTORS
+                    else:
+                        if doctors:
+                            if doctorType == "Asistent":
+                                for word in doctors.split():
+                                    if word in ['lekar', 'na', 'specijalizaciji','stažu']:
+                                        break
+                                else:
+                                    OUTPUT[doctorType].append(doctors)
+                            elif not OUTPUT[doctorType]:
+                                OUTPUT[doctorType] = [doctors]
         return OUTPUT
 
     @staticmethod

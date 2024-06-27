@@ -23,7 +23,6 @@ class TitleFrame:
                                  fg_color=ThemeColors['warning'], text_color=ThemeColors['dark'], text_color_disabled=ThemeColors['secondary'],
                                  command=self.reconecting)
         
-
     def reconecting(self):
         print("RECONECTING...")
 
@@ -51,14 +50,12 @@ class FormFrame:
         self.DBMS = DBMS()
         self.BUTT = Buttons()
         self.DB = self.DBMS.DB
-        FormFrame.DefaultForm_button_fun = [self.BUTT.Add_Patient,
-                                            self.BUTT.Update_Patient,
-                                            self.BUTT.Delete_Patient,
-                                            self.BUTT.Clear_Form]
-        FormFrame.AlternativeForm_button_fun = [self.BUTT.Add_Image,
-                                                self.BUTT.Update_Image,
-                                                self.BUTT.Delete_Image,
-                                                self.BUTT.Fill_FromImage]
+
+        FormFrame.Form_button_fun =[self.BUTT.Add_Patient,
+                                    self.BUTT.Update_Patient,
+                                    self.BUTT.Delete_Patient,
+                                    self.BUTT.Fill_FromImage,
+                                    self.BUTT.Clear_Form    ]
 
         self.valid_notblank = root.register(self.BUTT.validate_notblank)
         self.valid_dijagnoza = root.register(self.BUTT.validate_dijagnoza)
@@ -75,13 +72,12 @@ class FormFrame:
         self.DefaultForm = Frame(self.Form_Frame)
         self.DefaultForm.grid(row=1, column=0, columnspan=4, sticky="nsew")
         self.FormPatient_Create(self.DefaultForm,default_form_entry, form_groups['Default'])
-        self.FormPatient_Buttons(self.DefaultForm,[3],default_form_buttons,'default')
             # ALTERNATIVE FORM CREATE
         self.AlternativeForm = Frame(self.Form_Frame)
         self.AlternativeForm.grid(row=1, column=0, columnspan=4, sticky="nsew")
         self.AlternativeForm.grid_remove()
-        self.FormPatient_Create(self.AlternativeForm,alternative_form_entry,form_groups['Alternative'],-8)
-        self.FormPatient_Buttons(self.AlternativeForm,[3],alternative_form_buttons,'alternative')
+        self.FormPatient_Create(self.AlternativeForm,alternative_form_entry,form_groups['Alternative'])
+        self.FormPatient_Buttons(self.AlternativeForm,[3],form_buttons)
  
     def label_ImageLoad(self,images_list):
         return_images = []
@@ -143,7 +139,6 @@ class FormFrame:
         table.column("Slika", width=400, stretch=True)  # Podesite širinu kolone Slika
 
         frame.grid_propagate(False)
-
         return table
 
     def FormPatient_Create(self, parent:Frame, form_dict, group, pad_k=0):
@@ -165,16 +160,16 @@ class FormFrame:
                          padx=title_padding[0], pady=title_padding[1], sticky="nsew")
                 n +=1
 
-            if txt in self.DB.pacijenti:
-                table = 'pacijenti'
-            elif txt in self.DB.pacijenti_dijagnoza:
-                table = 'pacijenti dijagnoza'
-            elif txt in self.DB.operaciona_lista:
-                table = 'operaciona lista'
+            if txt in self.DB.pacijent:
+                table = 'pacijent'
+            elif txt in self.DB.dg_kategorija:
+                table = 'dijagnoza'
+            elif txt in self.DB.dr_funkcija:
+                table = 'operacija'
             elif txt in self.DB.slike:
                 table = 'slike'
-            #wraplength = 100 if ' ' in data[0] else None
-            lbl = tb.Label(parent, anchor="center", justify='center', bootstyle=labelColor, text=data[0], font=font_label())
+
+            lbl = tb.Label(parent, anchor="center", justify='center', bootstyle=labelColor, text=data[0], font=font_label('normal'))
             lbl.grid(row=i+n, column=0, columnspan=2,
                      padx=(form_padding_entry[0][0],form_padding_entry[0][1]+pad_k), pady=form_padding_entry[1], sticky="nswe")
 
@@ -187,7 +182,8 @@ class FormFrame:
                                       font=font_entry, validate="focus", validatecommand=(self.valid_notblank, '%P'), state="readonly")
                     self.BUTT.Validation_Widgets.append(ent)
                 elif data[1] == 'Validate':
-                    validcmd = self.valid_dijagnoza if 'Dg' in txt else self.valid_godiste if txt=='Godište' else self.valid_notblank
+                    validcmd = self.valid_dijagnoza if ('dijagnoza' in txt or 'Uzrok' in txt) else \
+                                self.valid_godiste if txt=='Godište' else self.valid_notblank
                     ent = tb.Entry(parent, width=data[2], textvariable=self.BUTT.Patient_FormVariables[table][txt], font=font_entry,
                                    validate="focus", validatecommand=(validcmd, '%P'))
                     self.BUTT.Validation_Widgets.append(ent)
@@ -212,12 +208,11 @@ class FormFrame:
                 self.BUTT.Patient_FormVariables['slike'][txt] = sliketable
                 ent = None
             if ent:
-                ent.grid(row=i+n, column=2, columnspan=2, padx=form_padding_entry[0], pady=form_padding_entry[1], sticky="w")
+                ent.grid(row=i+n, column=2, columnspan=2, padx=form_padding_entry[0], pady=form_padding_entry[1], sticky="nsw")
 
-    def FormPatient_Buttons(self,parent,split,buttons,form):
-        buttons_cmd = FormFrame.DefaultForm_button_fun if form=='default' else FormFrame.AlternativeForm_button_fun if form=='alternative' else None
+    def FormPatient_Buttons(self,parent,split,buttons):
         Frame(parent).grid(row=16, columnspan=4, pady=12) ## prazan frame za odvajanje (6*2 == 12)
-        for i,((but,btype),cmd) in enumerate(zip(buttons,buttons_cmd)):
+        for i,((but,btype),cmd) in enumerate(zip(buttons,FormFrame.Form_button_fun)):
             if i in split or i==0:
                 Buttons_Frame = Frame(parent)
                 Buttons_Frame.grid(row=18+i, columnspan=4)
@@ -522,7 +517,6 @@ class WindowFrame:
         self.scroll_x.pack(side=BOTTOM, fill=X)
         Media.Slike_Viewer.configure(yscrollcommand=self.scroll_y.set, xscrollcommand=self.scroll_x.set)
 
-
     def Log_SideFrame(self,parent_frame):
         lbl1 = tb.Label(parent_frame,text="Full Query", anchor="center", justify='center', bootstyle=labelColor, font=font_label())
         lbl1.grid(row=0, column=0)
@@ -542,11 +536,13 @@ class WindowFrame:
         parent_frame.grid_columnconfigure(0,weight=1)
         parent_frame.grid_rowconfigure(1,weight=1)     
 
-    def Checkbutton_Create(self,parent_frame):
+    def Checkbutton_Create(self,parent_frame:Frame):
         table = self.DBMS.TablePacijenti_Columns
-        groups = [table.index("Starost"),table.index("Dg Glavna"),table.index("Datum Prijema"),table.index("Operator")]
+        groups = [table.index("Starost"),table.index("Uputna dijagnoza"),table.index("Datum Prijema"),table.index("Operator")]
         labels = ["Pacijent","Dijagnoza","Datum","Doktori"]
+        n=1
         for i,column in enumerate(table):
+            print(i,column)
             if i in groups:
                 check_pos = i
                 group_pos = groups.index(i)
@@ -557,13 +553,31 @@ class WindowFrame:
                 frame = Frame(parent_frame,bd=4,relief=RIDGE)
                 frame.grid(row=0,column=group_pos, sticky="w")
                 frame.columnconfigure([i for i in range(groupnum)],weight=1)
-
-                lbl = tb.Label(frame,anchor="center", bootstyle=labelColor, text=labels[group_pos], font=font_label())
-                lbl.grid(row=0, column=0, columnspan=groupnum, pady=(0,6))
+                if not (groups[2]>i>=groups[1] or i>=groups[3]):
+                    lbl = tb.Label(frame,anchor="center", bootstyle=labelColor, text=labels[group_pos], font=font_label())
+                    lbl.grid(row=0, column=0, columnspan=groupnum, pady=(0,6))
             if i>=groups[0]:
-                txt = column if " " not in column else column.split()[1]
-                tb.Checkbutton(frame, text=txt, variable=self.DBMS.Pacijenti_ColumnVars[column],
-                                bootstyle=bootstyle_check).grid(row=1, column=i-check_pos, padx=6)
+                if " " not in column:
+                    txt = column
+                else:
+                    if "dijagnoza" in column and column.count(" ")==2:
+                        txt = column.replace('dijagnoza','').strip()
+                    elif "Osnovni" in column:
+                        txt = column.replace('Osnovni','').strip()
+                    elif "Gostujući" in column:
+                        txt = column.replace('Gostujući','').strip()
+                    elif "Datum" in column:
+                        txt = column.replace('Datum','').strip()
+                    else:
+                        txt = column
+                if (groups[2]>i>=groups[1]) or i>=groups[3]:
+                    N = 1 if n==1 else 0
+                    tb.Checkbutton(frame, text=txt, variable=self.DBMS.Pacijenti_ColumnVars[column],
+                                bootstyle=bootstyle_check).grid(row=1-n, column=i-check_pos+N, padx=6, pady=(2*N,4*N+2))
+                    n*=-1
+                else:
+                    tb.Checkbutton(frame, text=txt, variable=self.DBMS.Pacijenti_ColumnVars[column],
+                                    bootstyle=bootstyle_check).grid(row=1, column=i-check_pos, padx=6)
             self.DBMS.Pacijenti_ColumnVars[column].set(1)
         parent_frame.columnconfigure(len(labels),weight=1)
 
@@ -611,7 +625,6 @@ class GUI:
                 decorated_method = error_catcher(self.DB)(method)
                 setattr(self.DB, name, decorated_method.__get__(self.DB, type(self.DB)))
 
-    
     def Buttons_Decorating(self):
         for name, method in inspect.getmembers(Buttons, predicate=inspect.isfunction):
             for i in ["Add","Update","Delete","Show_Image","Fill"]:
@@ -707,11 +720,13 @@ class GUI:
         self.DB = self.DBMS.DB
 
         # DECORATING
+        #'''
         self.GoogleDrive_Decorating()
         self.Media_Decorating()
         self.Database_Decorating()
         self.Buttons_Decorating()
         self.DBMS_Decorating()
+        #'''
         
         self.root = root
         self.root.title(app_name)
@@ -751,7 +766,7 @@ style.map("TNotebook.Tab", foreground=[("selected", ThemeColors['selectfg']),
 
 style.configure("Treeview", rowheight=int(F_SIZE*2.2))
 style.map("Treeview.Heading", background=[('active',ThemeColors["primary"])])
-style.configure("Treeview.Heading",font=font_label('normal'), padding=(0,F_SIZE//2))
+style.configure("Treeview.Heading",font=font_label('normal'), padding=(0 , 2 , 0 , int(2.2*F_SIZE)))
 
 # Menja samo FONT SIZE za TABLE i DATAENTRY
 default_font = nametofont("TkDefaultFont")

@@ -31,7 +31,7 @@ class Buttons(Singleton):
 
             self.FormTitle = None
             self.PatientInfo = None
-            self.Patient_FormVariables = {'pacijenti':{},'pacijenti dijagnoza':{},'operaciona lista':{},'slike':{}}
+            self.Patient_FormVariables = {'pacijent':{},'dijagnoza':{},'operacija':{},'slike':{}}
             self.MKB_FormVariables = dict()
             self.Logs_FormVariables = dict()
             self.FilterOptions = dict()
@@ -286,8 +286,6 @@ class Buttons(Singleton):
             Messagebox.show_warning(parent=self.MessageBoxParent,
                                     title=f"Updating failed!", message="Niste uneli sve tražene podatke")
     
-    #@method_efficency
-    #@error_catcher
     def Delete_Patient(self):
         confirm = Messagebox.yesno(parent=self.MessageBoxParent,
                                 title=f"Deleting...", message=f"Are you sure you want to delete\n{self.PatientInfo.cget('text')}?", alert=True)
@@ -298,8 +296,6 @@ class Buttons(Singleton):
             self.UPDATE = True
         return
     
-    #@method_efficency
-    #@error_catcher
     def Delete_MKB(self):
         print("---"*66)
         self.UPDATE = True
@@ -307,43 +303,40 @@ class Buttons(Singleton):
         return
     
     def import_many_MKB(self):
-        self.UPDATE = True
         print(self.GD.UserSession)
+        print("FormVariables")
+        print(self.Patient_FormVariables)
 
-    def Show_Image_execute(self,ID=None,MediaType=None,blob_data=False):
-        if blob_data is False:
-            blob_data = self.GD.download_BLOB(ID)
+    def Add_Image(self):
+        print("---"*66)
+        self.UPDATE = True
+        pass
 
-        width = Media.Slike_Viewer.winfo_width()
-        height = Media.Slike_Viewer.winfo_height()
+    def Update_Image(self):
+        print("---"*66)
+        self.UPDATE = True
+        pass   
+                                   
+    def Delete_Image(self):
+        print("---"*66)
+        self.UPDATE = True
+        pass
 
-        if "image" in MediaType:
-            Media.Image_Active = Media.get_image(blob_data)
-            image = Media.resize_image(Media.Image_Active, width, height, savescale=True)
-            image = ImageTk.PhotoImage(image)
+    def Show_Image_FullScreen(self,event=None,BLOB=None):
+        print("---"*66)
+        if not BLOB:
+            ID = event.widget.item(event.widget.focus())['values'][1].split("_")[0]
+            def execute():
+                self.Slike_HideTable.grid_remove()
+                self.Show_Image(ID=ID)
+        else:
+            def execute():
+                self.Slike_HideTable.grid_remove()
+                self.Show_Image(BLOB=BLOB)
+        self.NoteBook.select(2)
 
-            Media.Slike_Viewer.create_image(width//2, height//2,  anchor='center', image=image)
-            Media.Slike_Viewer.image = image
-            Media.Slike_Viewer.config(scrollregion=Media.Slike_Viewer.bbox(ALL))
-            Media.Slike_Viewer.bind("<Double-1>",lambda event,image_data=blob_data: Media.open_image(event,image_data))
-            Media.Slike_Viewer.bind("<MouseWheel>", Media.zoom)
-            Media.Slike_Viewer.bind("<Button-4>", Media.zoom)
-            Media.Slike_Viewer.bind("<Button-5>", Media.zoom)
-            Media.Slike_Viewer.bind('<ButtonPress-1>', Media.move_from)
-            Media.Slike_Viewer.bind('<B1-Motion>',     Media.move_to)
-            
-        elif "video" in MediaType:
-            thumbnail,video_data = Media.create_video_thumbnail(blob_data)
-            thumbnail = Media.resize_image(thumbnail, width, height)
-            thumbnail = ImageTk.PhotoImage(thumbnail)
-            
-            Media.Slike_Viewer.create_image(width//2, height//2, anchor='center', image=thumbnail)
-            Media.Slike_Viewer.image = thumbnail
-            Media.Slike_Viewer.config(scrollregion=Media.Slike_Viewer.bbox(ALL))
-            Media.Slike_Viewer.bind("<Button-1>",lambda event,video=video_data: Media.play_video(event,video))
+        self.ROOT.after(WAIT,execute)
 
-    #@method_efficency
-    #@error_catcher
     def Show_Image(self,event=None,ID=False,BLOB=False):
         Media.Slike_Viewer.delete("all")
         Media.Image_Active = None
@@ -381,43 +374,38 @@ class Buttons(Singleton):
                             lambda mediatype='image',blob=BLOB: 
                             self.Show_Image_execute(MediaType=mediatype,blob_data=blob))
 
-    #@method_efficency
-    #@error_catcher
-    def Add_Image(self):
-        print("---"*66)
-        self.UPDATE = True
-        pass
+    def Show_Image_execute(self,ID=None,MediaType=None,blob_data=False):
+        if blob_data is False:
+            blob_data = self.GD.download_BLOB(ID)
 
-    #@method_efficency
-    #@error_catcher
-    def Update_Image(self):
-        print("---"*66)
-        self.UPDATE = True
-        pass   
+        width = Media.Slike_Viewer.winfo_width()
+        height = Media.Slike_Viewer.winfo_height()
 
-    #@method_efficency
-    #@error_catcher                                     
-    def Delete_Image(self):
-        print("---"*66)
-        self.UPDATE = True
-        pass
+        if "image" in MediaType:
+            Media.Image_Active = Media.get_image(blob_data)
+            image = Media.resize_image(Media.Image_Active, width, height, savescale=True)
+            image = ImageTk.PhotoImage(image)
 
-    def Show_Image_FullScreen(self,event=None,BLOB=None):
-        print("---"*66)
-        if not BLOB:
-            ID = event.widget.item(event.widget.focus())['values'][1].split("_")[0]
-            def execute():
-                self.Show_Image(ID=ID)
-        else:
-            def execute():
-                self.Show_Image(BLOB=BLOB)
-        self.NoteBook.select(2)
+            Media.Slike_Viewer.create_image(width//2, height//2,  anchor='center', image=image)
+            Media.Slike_Viewer.image = image
+            Media.Slike_Viewer.config(scrollregion=Media.Slike_Viewer.bbox(ALL))
+            Media.Slike_Viewer.bind("<Double-1>",lambda event,image_data=blob_data: Media.open_image(event,image_data))
+            Media.Slike_Viewer.bind("<MouseWheel>", Media.zoom)
+            Media.Slike_Viewer.bind("<Button-4>", Media.zoom)
+            Media.Slike_Viewer.bind("<Button-5>", Media.zoom)
+            Media.Slike_Viewer.bind('<ButtonPress-1>', Media.move_from)
+            Media.Slike_Viewer.bind('<B1-Motion>',     Media.move_to)
+            
+        elif "video" in MediaType:
+            thumbnail,video_data = Media.create_video_thumbnail(blob_data)
+            thumbnail = Media.resize_image(thumbnail, width, height)
+            thumbnail = ImageTk.PhotoImage(thumbnail)
+            
+            Media.Slike_Viewer.create_image(width//2, height//2, anchor='center', image=thumbnail)
+            Media.Slike_Viewer.image = thumbnail
+            Media.Slike_Viewer.config(scrollregion=Media.Slike_Viewer.bbox(ALL))
+            Media.Slike_Viewer.bind("<Button-1>",lambda event,video=video_data: Media.play_video(event,video))
 
-        self.ROOT.after(WAIT,self.Slike_HideTable.grid_remove)
-        self.ROOT.after(WAIT*2,execute)
-
-    #@method_efficency
-    #@error_catcher
     def Image_Read(self, result_queue):
         try:
             data = result_queue.get_nowait()
@@ -443,10 +431,8 @@ class Buttons(Singleton):
                     if reply=='Run':
                         self.Fill_FromImage(firsttry=False)
         except queue.Empty:
-            self.ROOT.after(100, self.Image_Read, result_queue)
+            self.ROOT.after(50, self.Image_Read, result_queue)
 
-    #@method_efficency
-    #@error_catcher
     def Fill_FromImage(self,firsttry=True):
         try:
             slika = self.Patient_FormVariables['slike']['Slike'].item(
@@ -487,19 +473,19 @@ class Buttons(Singleton):
         for widget in self.Validation_Widgets:
             widget:Widget
             widget.focus_force()
-        for col,widget in self.Patient_FormVariables['pacijenti'].items():
+        for col,widget in self.Patient_FormVariables['pacijent'].items():
             if 'Datum' in col:
                 if widget:
                     value = self.get_widget_value(widget)
                     if value:
                         try:
                             datetime.strptime(value, "%d-%b-%Y")
-                            widget.configure(bootstyle='primary')
+                            widget.configure(bootstyle='default')
                         except:
                             widget.configure(bootstyle='danger')
                             self.Valid_Datum = False
                     else:
-                        widget.configure(bootstyle='primary')
+                        widget.configure(bootstyle='default')
         event.widget.focus_force()
 
     def validate_notblank(self,x) -> bool:
@@ -526,9 +512,10 @@ class Buttons(Singleton):
                     return False
             else:
                 return True
-        elif x.strip() in self.MKB_all or x=="":
+        elif x=="" or (x.strip() in self.MKB_all):
             return True
         else:
+            print("proslo")
             self.Valid_Dijagnoza = False
             return False
             
@@ -551,12 +538,17 @@ class DBMS(Singleton):
             self.Table_Session: tb.ttk.Treeview = None
             self.Settings_Tab = None
             
-            self.TablePacijenti_Columns = tuple(['ID']+self.DB.pacijenti[:5]+self.DB.pacijenti_dijagnoza+self.DB.pacijenti[5:]+self.DB.operaciona_lista)
+            self.TablePacijenti_Columns = tuple(['ID']+self.DB.pacijent[:5] +\
+                                                    self.DB.dg_kategorija[:4] +\
+                                                        [self.DB.pacijent[5]] +\
+                                                            [self.DB.dg_kategorija[4]] +\
+                                                                self.DB.pacijent[6:] +\
+                                                                    self.DB.dr_funkcija  )
             self.Pacijenti_ColumnVars = {column: IntVar() for column in self.TablePacijenti_Columns}
 
             self.TableMKB_Columns = tuple(['ID']+self.DB.mkb10)
             self.MKB_ColumnVars = {column: IntVar() for column in self.TableMKB_Columns}
-            self.buttons.MKB_all = [i[0] for i in self.DB.execute_select("mkb10 2010",*("MKB - šifra",))]
+            self.buttons.MKB_all = [i[0] for i in self.DB.execute_select("mkb10",*("MKB - šifra",))]
 
             self.TableSlike_Columns = tuple(['ID']+self.DB.slike)
             self.Slike_ColumnVars = {column: IntVar() for column in self.TableSlike_Columns}
@@ -571,12 +563,34 @@ class DBMS(Singleton):
             self.Search_Bar_ENTRIES = dict()
             self.Search_Bar_ON = 1
 
+    def sort_treeview( self, tree:tb.Treeview, column, reverse):
+        data = [(tree.set(child, column), child) for child in tree.get_children('')]
+        data.sort(reverse=reverse)
+
+        for index, (val, child) in enumerate(data):
+            tree.move(child, '', index)
+
+        tree.heading(column, command=lambda: self.sort_treeview(tree, column, not reverse))
+
     def selected_columns(self,columns,table:tb.ttk.Treeview):
         Columns = [column for column, var in columns if var.get()==1]
-
         table.configure(columns=Columns)
         for i,col in enumerate(Columns):
-            table.heading(col, text=col, anchor=W)
+            TXT = f"\n{col}"
+            if col in self.DB.pacijent+self.DB.dg_kategorija+self.DB.dr_funkcija:
+                FIX = col.split()
+                if len(FIX)==2:
+                    TXT = "\n".join(FIX)
+                elif len(FIX)==3:
+                    if "dijagnoza" in col:
+                        TXT = "\n".join(FIX[:-1])
+                    else:
+                        TXT = f"{FIX[0]} {FIX[1]}\n{FIX[2]}"
+            elif col in self.DB.session:
+                if "efficency" in col:
+                    TXT = col.replace(" ",'\n')
+
+            table.heading(col, text=TXT, anchor=W, command=lambda: self.sort_treeview(table, col, True))
             table.column(col, stretch=False)
             if i==0: # ID COLUMN
                 table.column(col, width=int(F_SIZE*3.6), minwidth=F_SIZE*2)
@@ -587,10 +601,10 @@ class DBMS(Singleton):
             elif col in ['Opis']:
                 table.column(col, width=F_SIZE*13, minwidth=F_SIZE*6)
             elif col in ['Dg Latinski']:
-                table.column(col, width=F_SIZE*43, minwidth=F_SIZE*13)
+                table.column(col, width=F_SIZE*33, minwidth=F_SIZE*13)
             elif col in ['Opis Dijagnoze']:
-                table.column(col, width=F_SIZE*77)
-            elif col in ['Naziv','Gostujući Specijalizant'] or table in [self.Table_Logs,self.Table_Session]:
+                table.column(col, width=F_SIZE*55)
+            elif col in ['Naziv','Gostujući Specijalizant','Asistent'] or table in [self.Table_Logs,self.Table_Session]:
                 table.column(col, width=F_SIZE*16, minwidth=F_SIZE*7)
             else:
                 table.column(col, width=130, minwidth=F_SIZE*6)
@@ -656,16 +670,13 @@ class DBMS(Singleton):
             self.buttons.ROOT.after(WAIT, lambda: threading.Thread(target=execute).start())
         return result
 
-    #@method_efficency
-    #@error_catcher
     def showall_data(self,focus=None):
-        print("---"*66)
         if focus is None:
             focus = self.buttons.NoteBook.index(self.buttons.NoteBook.select())
         if focus==0:
             self.PatientTable_IDs.clear()
             columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
-            view = self.LoggingData(self.DB.execute_join_select("pacijenti",*(['id_pacijent']+columns)),"Pacijenti All SELECT")
+            view = self.LoggingData(self.DB.execute_join_select("pacijent",*(['id_pacijent']+columns)),"Pacijenti All SELECT")
           
             for item in self.Table_Pacijenti.get_children():
                 self.Table_Pacijenti.delete(item)
@@ -674,7 +685,7 @@ class DBMS(Singleton):
 
         elif focus==1:
             columns = self.selected_columns(self.MKB_ColumnVars.items(),self.Table_MKB)
-            view = self.LoggingData(self.DB.execute_select("mkb10 2010",*(columns)),"MKB All SELECT")
+            view = self.LoggingData(self.DB.execute_select("mkb10",*(columns)),"MKB All SELECT")
    
             for item in self.Table_MKB.get_children():
                 self.Table_MKB.delete(item)
@@ -708,11 +719,7 @@ class DBMS(Singleton):
             if view and len(view)!=0:
                 self.fill_Tables_Other(view,self.Table_Session)
 
-
-    #@method_efficency
-    #@error_catcher
     def search_data(self):
-        print("---"*66)
         def searching_dict_create():
             searching = dict()
             for n in range(1,self.Search_Bar_ON+1):
@@ -762,7 +769,7 @@ class DBMS(Singleton):
             self.PatientTable_IDs.clear()
             columns = self.selected_columns(self.Pacijenti_ColumnVars.items(),self.Table_Pacijenti)
             searching = searching_dict_create()
-            view = self.LoggingData(self.DB.execute_join_select("pacijenti",*(['id_pacijent']+columns),**searching),"Pacijenti Search SELECT")
+            view = self.LoggingData(self.DB.execute_join_select("pacijent",*(['id_pacijent']+columns),**searching),"Pacijenti Search SELECT")
 
             for item in self.Table_Pacijenti.get_children():
                 self.Table_Pacijenti.delete(item)
@@ -772,7 +779,7 @@ class DBMS(Singleton):
         elif focus==1:
             columns = self.selected_columns(self.MKB_ColumnVars.items(),self.Table_MKB)
             searching = searching_dict_create()
-            view = self.LoggingData(self.DB.execute_select("mkb10 2010",*(columns),**searching),"MKB Search SELECT")
+            view = self.LoggingData(self.DB.execute_select("mkb10",*(columns),**searching),"MKB Search SELECT")
 
             for item in self.Table_MKB.get_children():
                 self.Table_MKB.delete(item)
@@ -809,10 +816,7 @@ class DBMS(Singleton):
             if view and len(view)!=0:
                 self.fill_Tables_Other(view,self.Table_Session)
 
-    #@method_efficency
-    #@error_catcher
     def filter_data(self,columns):
-        print("---"*66)
         where = {}
         self.PatientTable_IDs.clear()
         for k,v in self.buttons.FilterOptions.items():
@@ -835,10 +839,7 @@ class DBMS(Singleton):
                 self.PatientTable_IDs.append(row[0])
                 self.Table_Pacijenti.insert('', END, values=formatted_row)
 
-    #@method_efficency
-    #@error_catcher
     def fill_MKBForm(self,event):
-        print("---"*66)
         try:
             row = self.Table_MKB.item(self.Table_MKB.focus())['values'][1:]
             headings = [column for column, var in self.MKB_ColumnVars.items() if var.get()==1][1:]
@@ -847,7 +848,6 @@ class DBMS(Singleton):
         except IndexError:
             return
     
-
     def MKB_double_click(self, event):
         if event.state & 0x0004:  # Control key is pressed
             self.add_MKB_DgForm(event, 'Dg Sporedna')
@@ -859,7 +859,7 @@ class DBMS(Singleton):
     def add_MKB_DgForm(self, event, column):
         try:
             mkb = self.Table_MKB.item(self.Table_MKB.focus())['values'][1]
-            dg_Widget = self.buttons.Patient_FormVariables['pacijenti dijagnoza'][column]
+            dg_Widget = self.buttons.Patient_FormVariables['dijagnoza'][column]
             dg_Value = self.buttons.get_widget_value(dg_Widget)
             if not dg_Value:
                 self.buttons.set_widget_value(dg_Widget,mkb)
@@ -868,10 +868,7 @@ class DBMS(Singleton):
         except IndexError:
             return
     
-    #@method_efficency
-    #@error_catcher
     def fill_PatientForm(self,event):
-        print("---"*66)
         self.buttons.Clear_Form()
         try:
             # DAJ RED GDE JE FOKUS i daj prvi VALUE i oduzmi 1 i pogleda ko je na toj poziciji u ID listi
@@ -893,7 +890,7 @@ class DBMS(Singleton):
                 fix = []
                 for v in val:
                     fix.append(v.strip())
-                val = " , ".join(fix) if col not in ["Asistenti","Gostujući Specijalizant"] else ",\n".join(fix)
+                val = " , ".join(fix) if col not in ["Asistent","Gostujući Specijalizant"] else ",\n".join(fix)    
             self.buttons.set_widget_value(widget,val)
         TEXT = f"{patient["Ime"]} {patient["Prezime"]} "
         try:
@@ -904,10 +901,7 @@ class DBMS(Singleton):
         self.buttons.PatientInfo.config(text=TEXT)
         self.buttons.FormTitle[0].configure(bootstyle='success')
   
-    #@method_efficency
-    #@error_catcher
     def fill_LogsForm(self,event):
-        print("---"*66)
         try:
             # DAJ RED GDE JE FOKUS i daj prvi VALUE i oduzmi 1 i pogleda ko je na toj poziciji u ID listi
             time = self.Table_Logs.item(self.Table_Logs.focus())['values'][1]
@@ -918,8 +912,6 @@ class DBMS(Singleton):
         except IndexError:
             return
 
-    #@method_efficency
-    #@error_catcher
     def tab_change(self,event):
         def filter_buttons_state(state):
             for txt,button in self.buttons.Buttons.items():
@@ -952,4 +944,3 @@ class DBMS(Singleton):
             tab_swapping(self.TableSession_Columns[1:],'disabled')
         else:
             self.Search_Bar.grid_remove()
-        
